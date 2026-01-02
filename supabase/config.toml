@@ -1,1 +1,4 @@
 project_id = "hwkqubziwhaadyijnocq"
+
+[functions.scan-medicine]
+verify_jwt = false
