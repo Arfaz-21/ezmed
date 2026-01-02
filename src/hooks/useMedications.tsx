@@ -34,7 +34,10 @@ export function useMedications(patientId?: string) {
   const targetPatientId = patientId || user?.id;
 
   const fetchMedications = useCallback(async () => {
-    if (!targetPatientId) return;
+    if (!targetPatientId) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -46,8 +49,14 @@ export function useMedications(patientId?: string) {
 
       if (error) throw error;
       setMedications(data || []);
+      
+      // If no medications, set loading to false immediately
+      if (!data || data.length === 0) {
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Error fetching medications:', error);
+      setLoading(false);
     }
   }, [targetPatientId]);
 
