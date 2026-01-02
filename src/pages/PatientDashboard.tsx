@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useMedications, MedicationLog } from '@/hooks/useMedications';
 import { useVoiceReminder } from '@/hooks/useVoiceReminder';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Check, Clock, Bell, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { Check, Clock, Bell, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, VolumeX, BellRing } from 'lucide-react';
 import PatientLinkSection from '@/components/patient/PatientLinkSection';
 import AdherenceChart from '@/components/patient/AdherenceChart';
+import MedicationCalendar from '@/components/patient/MedicationCalendar';
 
 export default function PatientDashboard() {
   const { user, signOut } = useAuth();
@@ -54,6 +56,25 @@ export default function PatientDashboard() {
       onSnooze: handleSnooze
     }
   );
+
+  // Push notifications
+  const { isSupported: pushSupported, permission: pushPermission, requestPermission, scheduleNotification } = usePushNotifications();
+
+  // Schedule notifications for pending logs
+  useEffect(() => {
+    if (pushPermission === 'granted') {
+      todayLogs
+        .filter(log => log.status === 'pending')
+        .forEach(log => scheduleNotification(log));
+    }
+  }, [todayLogs, pushPermission, scheduleNotification]);
+
+  const handleEnableNotifications = async () => {
+    const granted = await requestPermission();
+    if (granted) {
+      toast({ title: 'Notifications enabled!', description: 'You\'ll receive reminders even when the app is closed' });
+    }
+  };
 
   // Find the next pending medication
   const nextPending = todayLogs.find(log => 
@@ -139,9 +160,32 @@ export default function PatientDashboard() {
       {/* Patient Link Section */}
       <PatientLinkSection />
 
+      {/* Push Notification Enable Button */}
+      {pushSupported && pushPermission !== 'granted' && (
+        <Card className="mb-4 border-2 border-secondary/30 bg-gradient-to-r from-secondary/5 to-primary/5">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <BellRing className="h-6 w-6 text-secondary" />
+              <div>
+                <p className="font-medium">Enable Notifications</p>
+                <p className="text-sm text-muted-foreground">Get reminders even when app is closed</p>
+              </div>
+            </div>
+            <Button size="sm" onClick={handleEnableNotifications}>
+              Enable
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Adherence Chart */}
-      <div className="mb-6">
+      <div className="mb-4">
         <AdherenceChart />
+      </div>
+
+      {/* Calendar View */}
+      <div className="mb-6">
+        <MedicationCalendar />
       </div>
 
       {/* Current Medication Alert */}

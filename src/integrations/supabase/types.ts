@@ -71,6 +71,7 @@ export type Database = {
           dosage: string
           frequency: string
           id: string
+          image_url: string | null
           is_active: boolean
           name: string
           patient_id: string
@@ -83,6 +84,7 @@ export type Database = {
           dosage: string
           frequency?: string
           id?: string
+          image_url?: string | null
           is_active?: boolean
           name: string
           patient_id: string
@@ -95,6 +97,7 @@ export type Database = {
           dosage?: string
           frequency?: string
           id?: string
+          image_url?: string | null
           is_active?: boolean
           name?: string
           patient_id?: string

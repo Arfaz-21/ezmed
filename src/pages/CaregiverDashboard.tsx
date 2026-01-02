@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { 
   LogOut, Users, Link, Plus, Trash2, Edit2, 
-  Check, Clock, AlertTriangle, Bell, Unlink 
+  Check, Clock, AlertTriangle, Bell, Unlink, Camera, Calendar
 } from 'lucide-react';
 import {
   Dialog,
@@ -18,6 +18,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import MedicineScanner from '@/components/caregiver/MedicineScanner';
+import MedicationCalendar from '@/components/patient/MedicationCalendar';
 
 export default function CaregiverDashboard() {
   const { signOut } = useAuth();
@@ -140,17 +142,31 @@ function LinkedCaregiverDashboard({
   const { toast } = useToast();
   
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [editingMed, setEditingMed] = useState<string | null>(null);
   const [medForm, setMedForm] = useState({
     name: '',
     dosage: '',
     scheduled_time: '08:00',
-    frequency: 'daily'
+    frequency: 'daily',
+    image_url: '' as string | null
   });
 
   const resetForm = () => {
-    setMedForm({ name: '', dosage: '', scheduled_time: '08:00', frequency: 'daily' });
+    setMedForm({ name: '', dosage: '', scheduled_time: '08:00', frequency: 'daily', image_url: null });
     setEditingMed(null);
+  };
+
+  const handleScanConfirm = (name: string, dosage: string, imageUrl: string | null) => {
+    setMedForm({
+      ...medForm,
+      name,
+      dosage,
+      image_url: imageUrl
+    });
+    setShowScanner(false);
+    setShowAddDialog(true);
   };
 
   const handleAddMedication = async () => {
@@ -284,51 +300,76 @@ function LinkedCaregiverDashboard({
         </CardContent>
       </Card>
 
+      {/* Scanner View */}
+      {showScanner && (
+        <div className="mb-6">
+          <MedicineScanner 
+            onConfirm={handleScanConfirm}
+            onCancel={() => setShowScanner(false)}
+          />
+        </div>
+      )}
+
+      {/* Calendar View */}
+      {showCalendar && (
+        <div className="mb-6">
+          <MedicationCalendar patientId={patientId} />
+        </div>
+      )}
+
       {/* Medication Management */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">Medications</h2>
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gap-2" onClick={resetForm}>
-              <Plus className="h-4 w-4" />
-              Add
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Medication</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Medication Name</Label>
-                <Input
-                  value={medForm.name}
-                  onChange={(e) => setMedForm({ ...medForm, name: e.target.value })}
-                  placeholder="e.g., Aspirin"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Dosage</Label>
-                <Input
-                  value={medForm.dosage}
-                  onChange={(e) => setMedForm({ ...medForm, dosage: e.target.value })}
-                  placeholder="e.g., 100mg"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Time</Label>
-                <Input
-                  type="time"
-                  value={medForm.scheduled_time}
-                  onChange={(e) => setMedForm({ ...medForm, scheduled_time: e.target.value })}
-                />
-              </div>
-              <Button onClick={handleAddMedication} className="w-full">
-                Add Medication
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowCalendar(!showCalendar)}>
+            <Calendar className="h-4 w-4" />
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => { setShowScanner(true); setShowAddDialog(false); }}>
+            <Camera className="h-4 w-4" />
+          </Button>
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-2" onClick={resetForm}>
+                <Plus className="h-4 w-4" />
+                Add
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Medication</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Medication Name</Label>
+                  <Input
+                    value={medForm.name}
+                    onChange={(e) => setMedForm({ ...medForm, name: e.target.value })}
+                    placeholder="e.g., Aspirin"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Dosage</Label>
+                  <Input
+                    value={medForm.dosage}
+                    onChange={(e) => setMedForm({ ...medForm, dosage: e.target.value })}
+                    placeholder="e.g., 100mg"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Time</Label>
+                  <Input
+                    type="time"
+                    value={medForm.scheduled_time}
+                    onChange={(e) => setMedForm({ ...medForm, scheduled_time: e.target.value })}
+                  />
+                </div>
+                <Button onClick={handleAddMedication} className="w-full">
+                  Add Medication
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -379,7 +420,8 @@ function LinkedCaregiverDashboard({
                           name: med.name,
                           dosage: med.dosage,
                           scheduled_time: med.scheduled_time,
-                          frequency: med.frequency
+                          frequency: med.frequency,
+                          image_url: (med as any).image_url || null
                         });
                       }}
                     >
