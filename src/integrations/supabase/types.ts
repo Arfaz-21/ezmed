@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      caregiver_alerts: {
+        Row: {
+          alert_type: string
+          caregiver_id: string
+          created_at: string
+          id: string
+          is_read: boolean
+          medication_log_id: string
+          message: string
+          patient_id: string
+        }
+        Insert: {
+          alert_type: string
+          caregiver_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          medication_log_id: string
+          message: string
+          patient_id: string
+        }
+        Update: {
+          alert_type?: string
+          caregiver_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          medication_log_id?: string
+          message?: string
+          patient_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caregiver_alerts_medication_log_id_fkey"
+            columns: ["medication_log_id"]
+            isOneToOne: false
+            referencedRelation: "medication_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medication_logs: {
         Row: {
           action_taken_at: string | null

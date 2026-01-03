@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { createCaregiverAlert } from './useCaregiverAlerts';
 
 export interface Medication {
   id: string;
@@ -10,6 +11,7 @@ export interface Medication {
   frequency: string;
   is_active: boolean;
   patient_id: string;
+  image_url?: string | null;
 }
 
 export interface MedicationLog {
@@ -221,7 +223,7 @@ export function useMedications(patientId?: string) {
     try {
       const snoozedUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString();
       
-      // Get current snooze count
+      // Get current snooze count and medication info
       const log = todayLogs.find(l => l.id === logId);
       const newSnoozeCount = (log?.snooze_count || 0) + 1;
 
@@ -236,6 +238,18 @@ export function useMedications(patientId?: string) {
         .eq('id', logId);
 
       if (error) throw error;
+      
+      // Alert caregiver if snoozed 3+ times
+      if (newSnoozeCount >= 3 && targetPatientId && log?.medications?.name) {
+        await createCaregiverAlert(
+          targetPatientId,
+          logId,
+          'multiple_snooze',
+          log.medications.name,
+          newSnoozeCount
+        );
+      }
+      
       await fetchTodayLogs();
       return { error: null, snoozeCount: newSnoozeCount };
     } catch (error) {
@@ -245,6 +259,8 @@ export function useMedications(patientId?: string) {
 
   const markAsMissed = async (logId: string) => {
     try {
+      const log = todayLogs.find(l => l.id === logId);
+      
       const { error } = await supabase
         .from('medication_logs')
         .update({
@@ -254,6 +270,17 @@ export function useMedications(patientId?: string) {
         .eq('id', logId);
 
       if (error) throw error;
+      
+      // Alert caregiver when medication is missed
+      if (targetPatientId && log?.medications?.name) {
+        await createCaregiverAlert(
+          targetPatientId,
+          logId,
+          'missed',
+          log.medications.name
+        );
+      }
+      
       await fetchTodayLogs();
       return { error: null };
     } catch (error) {

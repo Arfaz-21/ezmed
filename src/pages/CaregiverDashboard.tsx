@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { 
   LogOut, Users, Link, Plus, Trash2, Edit2, 
-  Check, Clock, AlertTriangle, Bell, Unlink, Camera, Calendar
+  Check, Clock, AlertTriangle, Bell, Unlink, Camera, Calendar, Pill
 } from 'lucide-react';
 import {
   Dialog,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import MedicineScanner from '@/components/caregiver/MedicineScanner';
 import MedicationCalendar from '@/components/patient/MedicationCalendar';
+import CaregiverAlerts from '@/components/caregiver/CaregiverAlerts';
 
 export default function CaregiverDashboard() {
   const { signOut } = useAuth();
@@ -246,6 +247,7 @@ function LinkedCaregiverDashboard({
           <h1 className="text-xl font-bold">Caregiver Dashboard</h1>
         </div>
         <div className="flex gap-2">
+          <CaregiverAlerts />
           <Button variant="outline" size="icon" onClick={onUnlink} className="h-10 w-10">
             <Unlink className="h-5 w-5" />
           </Button>
@@ -276,7 +278,16 @@ function LinkedCaregiverDashboard({
                   className={`flex items-center justify-between p-3 rounded-lg ${getStatusBg(log.status)}`}
                 >
                   <div className="flex items-center gap-3">
-                    {getStatusIcon(log.status)}
+                    {/* Medicine Image or Status Icon */}
+                    {(log.medications as any)?.image_url ? (
+                      <img 
+                        src={(log.medications as any).image_url} 
+                        alt={log.medications?.name}
+                        className="w-10 h-10 object-cover rounded-lg border border-border"
+                      />
+                    ) : (
+                      getStatusIcon(log.status)
+                    )}
                     <div>
                       <p className="font-medium">{log.medications?.name}</p>
                       <p className="text-sm text-muted-foreground">{formatTime(log.scheduled_time)}</p>
@@ -406,9 +417,23 @@ function LinkedCaregiverDashboard({
                 </CardContent>
               ) : (
                 <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold">{med.name}</p>
-                    <p className="text-sm text-muted-foreground">{med.dosage} • {formatTime(med.scheduled_time)}</p>
+                  <div className="flex items-center gap-3">
+                    {/* Medicine Image */}
+                    {(med as any).image_url ? (
+                      <img 
+                        src={(med as any).image_url} 
+                        alt={med.name}
+                        className="w-12 h-12 object-cover rounded-lg border border-border"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
+                        <Pill className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold">{med.name}</p>
+                      <p className="text-sm text-muted-foreground">{med.dosage} • {formatTime(med.scheduled_time)}</p>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Button
