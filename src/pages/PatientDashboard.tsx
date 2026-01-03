@@ -193,9 +193,21 @@ export default function PatientDashboard() {
         <Card className={`mb-6 border-2 ${getStatusColor(nextPending.status)} shadow-xl overflow-hidden`}>
           <div className="absolute inset-0 bg-gradient-to-br from-transparent to-primary/5" />
           <CardContent className="p-6 text-center relative">
-            <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-              {getStatusIcon(nextPending.status)}
-            </div>
+            {/* Medicine Image */}
+            {nextPending.medications?.image_url && (
+              <div className="mb-4 flex justify-center">
+                <img 
+                  src={nextPending.medications.image_url} 
+                  alt={nextPending.medications.name}
+                  className="w-24 h-24 object-cover rounded-xl border-2 border-primary/20 shadow-lg"
+                />
+              </div>
+            )}
+            {!nextPending.medications?.image_url && (
+              <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
+                {getStatusIcon(nextPending.status)}
+              </div>
+            )}
             <h2 className="text-elderly-xl font-bold mb-2 text-foreground">
               {nextPending.medications?.name || 'Medication'}
             </h2>
@@ -279,14 +291,23 @@ export default function PatientDashboard() {
             <Card key={log.id} className={`border-2 ${getStatusColor(log.status)} transition-all hover:shadow-md`}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`p-2 rounded-full ${
-                    log.status === 'taken' ? 'bg-success/10' :
-                    log.status === 'snoozed' ? 'bg-warning/10' :
-                    log.status === 'missed' ? 'bg-destructive/10' :
-                    'bg-primary/10'
-                  }`}>
-                    {getStatusIcon(log.status)}
-                  </div>
+                  {/* Medicine Image or Status Icon */}
+                  {log.medications?.image_url ? (
+                    <img 
+                      src={log.medications.image_url} 
+                      alt={log.medications.name}
+                      className="w-14 h-14 object-cover rounded-lg border border-border"
+                    />
+                  ) : (
+                    <div className={`p-2 rounded-full ${
+                      log.status === 'taken' ? 'bg-success/10' :
+                      log.status === 'snoozed' ? 'bg-warning/10' :
+                      log.status === 'missed' ? 'bg-destructive/10' :
+                      'bg-primary/10'
+                    }`}>
+                      {getStatusIcon(log.status)}
+                    </div>
+                  )}
                   <div>
                     <p className="text-lg font-semibold">{log.medications?.name}</p>
                     <p className="text-muted-foreground">{formatTime(log.scheduled_time)}</p>
