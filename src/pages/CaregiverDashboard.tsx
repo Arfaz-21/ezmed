@@ -21,6 +21,8 @@ import {
 import MedicineScanner from '@/components/caregiver/MedicineScanner';
 import MedicationCalendar from '@/components/patient/MedicationCalendar';
 import CaregiverAlerts from '@/components/caregiver/CaregiverAlerts';
+import DailySummary from '@/components/caregiver/DailySummary';
+import EmergencyAlertBanner from '@/components/caregiver/EmergencyAlertBanner';
 
 export default function CaregiverDashboard() {
   const { signOut } = useAuth();
@@ -257,7 +259,11 @@ function LinkedCaregiverDashboard({
         </div>
       </header>
 
-      {/* Today's Status */}
+      {/* Emergency Alert Banner */}
+      <EmergencyAlertBanner />
+
+      {/* Daily Summary */}
+      <DailySummary todayLogs={todayLogs} />
       <Card className="mb-6 border-2 border-secondary/30">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">

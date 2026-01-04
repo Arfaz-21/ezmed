@@ -55,6 +55,36 @@ export type Database = {
           },
         ]
       }
+      emergency_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          caregiver_id: string
+          created_at: string
+          id: string
+          is_acknowledged: boolean
+          message: string
+          patient_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          caregiver_id: string
+          created_at?: string
+          id?: string
+          is_acknowledged?: boolean
+          message?: string
+          patient_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          caregiver_id?: string
+          created_at?: string
+          id?: string
+          is_acknowledged?: boolean
+          message?: string
+          patient_id?: string
+        }
+        Relationships: []
+      }
       medication_logs: {
         Row: {
           action_taken_at: string | null

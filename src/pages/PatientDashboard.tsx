@@ -10,6 +10,7 @@ import { Check, Clock, Bell, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, 
 import PatientLinkSection from '@/components/patient/PatientLinkSection';
 import AdherenceChart from '@/components/patient/AdherenceChart';
 import MedicationCalendar from '@/components/patient/MedicationCalendar';
+import HelpButton from '@/components/patient/HelpButton';
 
 export default function PatientDashboard() {
   const { user, signOut } = useAuth();
@@ -46,14 +47,20 @@ export default function PatientDashboard() {
   };
 
   // Voice reminder hook with callbacks
-  const { isListening, voiceEnabled, toggleVoice } = useVoiceReminder(
+  const { isListening, voiceEnabled, toggleVoice, clearActiveReminder } = useVoiceReminder(
     todayLogs, 
     (log) => {
       setActiveLog(log);
     },
     {
-      onTaken: handleTaken,
-      onSnooze: handleSnooze
+      onTaken: (logId) => {
+        handleTaken(logId);
+        clearActiveReminder();
+      },
+      onSnooze: (logId, minutes) => {
+        handleSnooze(logId, minutes);
+        clearActiveReminder();
+      }
     }
   );
 
@@ -186,6 +193,11 @@ export default function PatientDashboard() {
       {/* Calendar View */}
       <div className="mb-6">
         <MedicationCalendar />
+      </div>
+
+      {/* HELP Button */}
+      <div className="mb-6">
+        <HelpButton />
       </div>
 
       {/* Current Medication Alert */}

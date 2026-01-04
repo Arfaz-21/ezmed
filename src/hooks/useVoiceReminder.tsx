@@ -55,13 +55,15 @@ interface VoiceReminderOptions {
   onSnooze?: (logId: string, minutes: number) => void;
 }
 
+// Store scheduled reminders to trigger at exact times
+const scheduledReminders = new Map<string, ReturnType<typeof setTimeout>>();
+
 export function useVoiceReminder(
   logs: MedicationLog[],
   onReminderTriggered?: (log: MedicationLog) => void,
   options?: VoiceReminderOptions
 ) {
-  const spokenLogsRef = useRef<Set<string>>(new Set());
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeReminderRef = useRef<string | null>(null);
   const repeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -106,27 +108,40 @@ export function useVoiceReminder(
     setIsListening(false);
   }, []);
 
+  const clearActiveReminder = useCallback(() => {
+    activeReminderRef.current = null;
+    setActiveLogId(null);
+    stopListening();
+    if (repeatIntervalRef.current) {
+      clearInterval(repeatIntervalRef.current);
+      repeatIntervalRef.current = null;
+    }
+  }, [stopListening]);
+
   const processVoiceCommand = useCallback((transcript: string, logId: string) => {
     const lower = transcript.toLowerCase().trim();
     console.log('Processing voice command:', lower);
 
-    // Check for "taken" command
-    if (lower.includes('taken') || lower.includes('take') || lower.includes('done') || lower.includes('yes')) {
+    // Check for "taken" command - expanded keywords
+    if (
+      lower.includes('taken') || 
+      lower.includes('take') || 
+      lower.includes('took') ||
+      lower.includes('i took it') ||
+      lower.includes('done') || 
+      lower.includes('yes') ||
+      lower.includes('okay') ||
+      lower.includes('ok')
+    ) {
       speak('Marking as taken. Great job!');
       options?.onTaken?.(logId);
-      stopListening();
-      setActiveLogId(null);
-      // Clear repeat interval
-      if (repeatIntervalRef.current) {
-        clearInterval(repeatIntervalRef.current);
-        repeatIntervalRef.current = null;
-      }
+      clearActiveReminder();
       return true;
     }
 
     // Check for snooze commands
     const snoozeMatch = lower.match(/snooze(?:\s+for)?\s*(\d+)?\s*(?:minutes?|mins?)?/);
-    if (lower.includes('snooze') || lower.includes('later') || lower.includes('wait')) {
+    if (lower.includes('snooze') || lower.includes('later') || lower.includes('wait') || lower.includes('remind me')) {
       let minutes = 5; // default
       if (snoozeMatch && snoozeMatch[1]) {
         minutes = parseInt(snoozeMatch[1], 10);
@@ -138,18 +153,12 @@ export function useVoiceReminder(
       
       speak(`Snoozing for ${minutes} minutes.`);
       options?.onSnooze?.(logId, minutes);
-      stopListening();
-      setActiveLogId(null);
-      // Clear repeat interval
-      if (repeatIntervalRef.current) {
-        clearInterval(repeatIntervalRef.current);
-        repeatIntervalRef.current = null;
-      }
+      clearActiveReminder();
       return true;
     }
 
     return false;
-  }, [speak, options, stopListening]);
+  }, [speak, options, clearActiveReminder]);
 
   const startListening = useCallback((logId: string) => {
     // Check if browser supports speech recognition
@@ -183,19 +192,32 @@ export function useVoiceReminder(
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
-      if (event.error !== 'no-speech') {
-        setIsListening(false);
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        // Try to restart on error
+        setTimeout(() => {
+          if (activeReminderRef.current === logId) {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.log('Could not restart recognition');
+            }
+          }
+        }, 1000);
       }
     };
 
     recognition.onend = () => {
       // Restart if still active
-      if (activeLogId === logId && isListening) {
-        try {
-          recognition.start();
-        } catch (e) {
-          console.log('Could not restart recognition');
-        }
+      if (activeReminderRef.current === logId) {
+        setTimeout(() => {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.log('Could not restart recognition');
+          }
+        }, 500);
+      } else {
+        setIsListening(false);
       }
     };
 
@@ -206,11 +228,17 @@ export function useVoiceReminder(
     } catch (e) {
       console.error('Could not start speech recognition:', e);
     }
-  }, [stopListening, processVoiceCommand, activeLogId, isListening]);
+  }, [stopListening, processVoiceCommand]);
 
   const triggerReminder = useCallback((log: MedicationLog) => {
+    // Don't re-trigger if already active for this log
+    if (activeReminderRef.current === log.id) return;
+    
+    activeReminderRef.current = log.id;
     const medName = log.medications?.name || 'your medication';
     const message = `It's time to take ${medName}. Please say taken, or snooze.`;
+    
+    console.log('Triggering voice reminder for:', medName);
     
     speak(message, () => {
       // Start listening after speaking
@@ -218,74 +246,122 @@ export function useVoiceReminder(
     });
     
     onReminderTriggered?.(log);
+
+    // Set up repeat reminders every 60 seconds until responded
+    if (repeatIntervalRef.current) {
+      clearInterval(repeatIntervalRef.current);
+    }
+    
+    repeatIntervalRef.current = setInterval(() => {
+      if (activeReminderRef.current === log.id) {
+        console.log('Repeating reminder for:', medName);
+        speak(`Reminder: Please take ${medName}. Say taken, or snooze.`, () => {
+          startListening(log.id);
+        });
+      } else {
+        if (repeatIntervalRef.current) {
+          clearInterval(repeatIntervalRef.current);
+          repeatIntervalRef.current = null;
+        }
+      }
+    }, 60000);
   }, [speak, startListening, onReminderTriggered]);
 
-  const checkReminders = useCallback(() => {
+  // Schedule reminders at exact times
+  const scheduleReminder = useCallback((log: MedicationLog, targetTime: Date) => {
+    const now = new Date();
+    const delay = targetTime.getTime() - now.getTime();
+    
+    if (delay <= 0) return; // Time already passed
+
+    const key = `${log.id}-${targetTime.toISOString()}`;
+    
+    // Clear any existing timeout for this key
+    if (scheduledReminders.has(key)) {
+      clearTimeout(scheduledReminders.get(key)!);
+    }
+
+    console.log(`Scheduling reminder for ${log.medications?.name} at ${targetTime.toLocaleTimeString()}, in ${Math.round(delay / 1000)}s`);
+    
+    const timeout = setTimeout(() => {
+      if (voiceEnabled) {
+        triggerReminder(log);
+      }
+      scheduledReminders.delete(key);
+    }, delay);
+    
+    scheduledReminders.set(key, timeout);
+  }, [triggerReminder, voiceEnabled]);
+
+  // Check and schedule reminders
+  useEffect(() => {
     if (!voiceEnabled) return;
 
     const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+    const today = now.toISOString().split('T')[0];
 
     logs.forEach(log => {
       if (log.status !== 'pending' && log.status !== 'snoozed') return;
+      if (activeReminderRef.current === log.id) return; // Already active
 
-      let shouldRemind = false;
-      const logKey = `${log.id}-${log.scheduled_date}`;
+      let targetTime: Date | null = null;
 
       if (log.status === 'pending') {
-        // Check if it's time for the medication
-        if (log.scheduled_time.slice(0, 5) === currentTime) {
-          shouldRemind = true;
-        }
-      } else if (log.status === 'snoozed' && log.snoozed_until) {
-        // Check if snooze period is over
-        const snoozeEnd = new Date(log.snoozed_until);
-        if (now >= snoozeEnd) {
-          shouldRemind = true;
-        }
-      }
-
-      if (shouldRemind && !spokenLogsRef.current.has(logKey)) {
-        spokenLogsRef.current.add(logKey);
-        triggerReminder(log);
-
-        // Set up repeat reminders every 60 seconds
-        repeatIntervalRef.current = setInterval(() => {
-          if (spokenLogsRef.current.has(logKey)) {
+        // Parse scheduled time
+        const [hours, minutes] = log.scheduled_time.split(':').map(Number);
+        targetTime = new Date();
+        targetTime.setHours(hours, minutes, 0, 0);
+        
+        // If time has passed, trigger immediately
+        if (now >= targetTime) {
+          const timeDiff = now.getTime() - targetTime.getTime();
+          // Only trigger if within the last 5 minutes
+          if (timeDiff < 5 * 60 * 1000) {
             triggerReminder(log);
           }
-        }, 60000);
+          return;
+        }
+      } else if (log.status === 'snoozed' && log.snoozed_until) {
+        targetTime = new Date(log.snoozed_until);
+        
+        // If snooze time has passed, trigger immediately
+        if (now >= targetTime) {
+          triggerReminder(log);
+          return;
+        }
+      }
 
-        // Allow re-reminder after 2 minutes if not handled
-        setTimeout(() => {
-          spokenLogsRef.current.delete(logKey);
-        }, 120000);
+      if (targetTime) {
+        scheduleReminder(log, targetTime);
       }
     });
-  }, [logs, voiceEnabled, triggerReminder]);
 
+    // Cleanup function
+    return () => {
+      scheduledReminders.forEach((timeout, key) => {
+        clearTimeout(timeout);
+      });
+      scheduledReminders.clear();
+    };
+  }, [logs, voiceEnabled, triggerReminder, scheduleReminder]);
+
+  // Load voices on mount
   useEffect(() => {
-    // Load voices
     if ('speechSynthesis' in window) {
       window.speechSynthesis.getVoices();
+      // Some browsers need this event
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
     }
 
-    // Check immediately
-    checkReminders();
-
-    // Then check every 15 seconds for more precise timing
-    intervalRef.current = setInterval(checkReminders, 15000);
-
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
       if (repeatIntervalRef.current) {
         clearInterval(repeatIntervalRef.current);
       }
       stopListening();
     };
-  }, [checkReminders, stopListening]);
+  }, [stopListening]);
 
   const speakNow = useCallback((text: string) => {
     speak(text);
@@ -302,6 +378,7 @@ export function useVoiceReminder(
     voiceEnabled, 
     toggleVoice,
     startListening,
-    stopListening
+    stopListening,
+    clearActiveReminder
   };
 }
