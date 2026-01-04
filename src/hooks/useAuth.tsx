@@ -104,8 +104,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setRole(null);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setRole(null);
+      setUser(null);
+      setSession(null);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const setUserRole = async (newRole: 'patient' | 'caregiver') => {

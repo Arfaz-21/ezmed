@@ -77,9 +77,26 @@ export default function PatientDashboard() {
   }, [todayLogs, pushPermission, scheduleNotification]);
 
   const handleEnableNotifications = async () => {
-    const granted = await requestPermission();
-    if (granted) {
-      toast({ title: 'Notifications enabled!', description: 'You\'ll receive reminders even when the app is closed' });
+    try {
+      const granted = await requestPermission();
+      if (granted) {
+        toast({ title: 'Notifications enabled!', description: 'You\'ll receive reminders even when the app is closed' });
+      } else {
+        toast({ title: 'Permission denied', description: 'Please allow notifications in your browser settings', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+      toast({ title: 'Error', description: 'Could not enable notifications', variant: 'destructive' });
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({ title: 'Signed out', description: 'You have been logged out' });
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({ title: 'Error', description: 'Could not sign out', variant: 'destructive' });
     }
   };
 
@@ -158,7 +175,7 @@ export default function PatientDashboard() {
               <span className="text-sm text-primary font-medium">Listening...</span>
             </div>
           )}
-          <Button variant="outline" size="icon" onClick={signOut} className="h-12 w-12 rounded-full border-2">
+          <Button variant="outline" size="icon" onClick={handleLogout} className="h-12 w-12 rounded-full border-2">
             <LogOut className="h-5 w-5" />
           </Button>
         </div>
