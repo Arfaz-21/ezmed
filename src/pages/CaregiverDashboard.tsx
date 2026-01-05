@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useLinking } from '@/hooks/useLinking';
 import { useMedications, MedicationLog } from '@/hooks/useMedications';
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { 
   LogOut, Users, Link, Plus, Trash2, Edit2, 
-  Check, Clock, AlertTriangle, Bell, BellOff, BellRing, Unlink, Camera, Calendar, Pill
+  Check, Clock, AlertTriangle, Bell, BellOff, BellRing, Unlink, Camera, Calendar, Pill, Settings
 } from 'lucide-react';
 import {
   Dialog,
@@ -141,6 +142,7 @@ function LinkedCaregiverDashboard({
   onSignOut: () => void;
   onUnlink: () => void;
 }) {
+  const navigate = useNavigate();
   const { 
     medications, 
     todayLogs, 
@@ -311,6 +313,16 @@ function LinkedCaregiverDashboard({
               </Tooltip>
             )}
             <CaregiverAlerts />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={() => navigate('/settings')} className="h-10 w-10">
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Settings</p>
+              </TooltipContent>
+            </Tooltip>
             <Button variant="outline" size="icon" onClick={onUnlink} className="h-10 w-10">
               <Unlink className="h-5 w-5" />
             </Button>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useMedications, MedicationLog } from '@/hooks/useMedications';
 import { useVoiceReminder } from '@/hooks/useVoiceReminder';
@@ -6,7 +7,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, VolumeX, BellRing } from 'lucide-react';
+import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, VolumeX, BellRing, Settings } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -19,6 +20,7 @@ import MedicationCalendar from '@/components/patient/MedicationCalendar';
 import HelpButton from '@/components/patient/HelpButton';
 
 export default function PatientDashboard() {
+  const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { todayLogs, markAsTaken, snooze, loading } = useMedications();
   const { toast } = useToast();
@@ -225,6 +227,21 @@ export default function PatientDashboard() {
                 <span className="text-sm text-primary font-medium">Listening...</span>
               </div>
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => navigate('/settings')} 
+                  className="h-12 w-12 rounded-full border-2"
+                >
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Settings</p>
+              </TooltipContent>
+            </Tooltip>
             <Button variant="outline" size="icon" onClick={handleLogout} className="h-12 w-12 rounded-full border-2">
               <LogOut className="h-5 w-5" />
             </Button>
