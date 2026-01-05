@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLinking } from '@/hooks/useLinking';
 import { useMedications, MedicationLog } from '@/hooks/useMedications';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { 
   LogOut, Users, Link, Plus, Trash2, Edit2, 
-  Check, Clock, AlertTriangle, Bell, Unlink, Camera, Calendar, Pill
+  Check, Clock, AlertTriangle, Bell, BellOff, BellRing, Unlink, Camera, Calendar, Pill
 } from 'lucide-react';
 import {
   Dialog,
@@ -18,6 +19,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import MedicineScanner from '@/components/caregiver/MedicineScanner';
 import MedicationCalendar from '@/components/patient/MedicationCalendar';
 import CaregiverAlerts from '@/components/caregiver/CaregiverAlerts';
@@ -240,24 +247,78 @@ function LinkedCaregiverDashboard({
     }
   };
 
+  const { isSupported: pushSupported, permission: pushPermission, requestPermission } = usePushNotifications();
+  const { toast: innerToast } = useToast();
+
+  const handleEnableNotifications = async () => {
+    try {
+      const granted = await requestPermission();
+      if (granted) {
+        innerToast({ title: 'Notifications enabled!', description: 'You\'ll receive alerts even when the app is closed' });
+      } else {
+        innerToast({ title: 'Permission denied', description: 'Please allow notifications in your browser settings', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+      innerToast({ title: 'Error', description: 'Could not enable notifications', variant: 'destructive' });
+    }
+  };
+
+  const getNotificationTooltip = () => {
+    if (pushPermission === 'granted') return 'Notifications are enabled. You\'ll receive alerts for emergencies and medication updates.';
+    if (pushPermission === 'denied') return 'Notifications are blocked. Please enable them in your browser settings to receive alerts.';
+    return 'Click to enable notifications. You\'ll receive alerts for emergencies and medication updates.';
+  };
+
   return (
-    <div className="min-h-screen bg-background p-4 pb-24">
-      {/* Header */}
-      <header className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <Users className="h-8 w-8 text-secondary" />
-          <h1 className="text-xl font-bold">Caregiver Dashboard</h1>
-        </div>
-        <div className="flex gap-2">
-          <CaregiverAlerts />
-          <Button variant="outline" size="icon" onClick={onUnlink} className="h-10 w-10">
-            <Unlink className="h-5 w-5" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={onSignOut} className="h-10 w-10">
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
+    <TooltipProvider>
+      <div className="min-h-screen bg-background p-4 pb-24">
+        {/* Header */}
+        <header className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <Users className="h-8 w-8 text-secondary" />
+            <h1 className="text-xl font-bold">Caregiver Dashboard</h1>
+          </div>
+          <div className="flex gap-2">
+            {/* Notification Status */}
+            {pushSupported && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={pushPermission !== 'granted' ? handleEnableNotifications : undefined}
+                    className={`h-10 w-10 ${
+                      pushPermission === 'granted' 
+                        ? 'text-success border-success/50' 
+                        : pushPermission === 'denied' 
+                          ? 'text-destructive border-destructive/50' 
+                          : 'text-muted-foreground'
+                    }`}
+                  >
+                    {pushPermission === 'granted' ? (
+                      <Bell className="h-5 w-5" />
+                    ) : pushPermission === 'denied' ? (
+                      <BellOff className="h-5 w-5" />
+                    ) : (
+                      <BellRing className="h-5 w-5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p>{getNotificationTooltip()}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <CaregiverAlerts />
+            <Button variant="outline" size="icon" onClick={onUnlink} className="h-10 w-10">
+              <Unlink className="h-5 w-5" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={onSignOut} className="h-10 w-10">
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
+        </header>
 
       {/* Emergency Alert Banner */}
       <EmergencyAlertBanner />
@@ -473,6 +534,7 @@ function LinkedCaregiverDashboard({
           ))
         )}
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
