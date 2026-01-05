@@ -7,6 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, VolumeX, BellRing } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import PatientLinkSection from '@/components/patient/PatientLinkSection';
 import AdherenceChart from '@/components/patient/AdherenceChart';
 import MedicationCalendar from '@/components/patient/MedicationCalendar';
@@ -100,6 +106,12 @@ export default function PatientDashboard() {
     }
   };
 
+  const getNotificationTooltip = () => {
+    if (pushPermission === 'granted') return 'Notifications are enabled. You\'ll receive reminders even when the app is closed.';
+    if (pushPermission === 'denied') return 'Notifications are blocked. Please enable them in your browser settings.';
+    return 'Click to enable notifications for medication reminders.';
+  };
+
   // Find the next pending medication
   const nextPending = todayLogs.find(log => 
     log.status === 'pending' || log.status === 'snoozed'
@@ -145,71 +157,79 @@ export default function PatientDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 pb-24">
-      {/* Header */}
-      <header className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <User className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-elderly-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              MedEase
-            </h1>
-            <p className="text-sm text-muted-foreground">Your health companion</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Notification Status */}
-          {pushSupported && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={pushPermission !== 'granted' ? handleEnableNotifications : undefined}
-              className={`h-12 w-12 rounded-full ${
-                pushPermission === 'granted' 
-                  ? 'text-success' 
-                  : pushPermission === 'denied' 
-                    ? 'text-destructive' 
-                    : 'text-muted-foreground'
-              }`}
-              title={
-                pushPermission === 'granted' 
-                  ? 'Notifications enabled' 
-                  : pushPermission === 'denied' 
-                    ? 'Notifications blocked' 
-                    : 'Click to enable notifications'
-              }
-            >
-              {pushPermission === 'granted' ? (
-                <Bell className="h-6 w-6" />
-              ) : pushPermission === 'denied' ? (
-                <BellOff className="h-6 w-6" />
-              ) : (
-                <BellRing className="h-6 w-6" />
-              )}
-            </Button>
-          )}
-          {/* Voice Status */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={toggleVoice}
-            className={`h-12 w-12 rounded-full ${voiceEnabled ? 'text-primary' : 'text-muted-foreground'}`}
-          >
-            {voiceEnabled ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
-          </Button>
-          {isListening && (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/30">
-              <Mic className="h-4 w-4 text-primary animate-pulse" />
-              <span className="text-sm text-primary font-medium">Listening...</span>
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 pb-24">
+        {/* Header */}
+        <header className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+              <User className="h-6 w-6 text-white" />
             </div>
-          )}
-          <Button variant="outline" size="icon" onClick={handleLogout} className="h-12 w-12 rounded-full border-2">
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
+            <div>
+              <h1 className="text-elderly-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                MedEase
+              </h1>
+              <p className="text-sm text-muted-foreground">Your health companion</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Notification Status */}
+            {pushSupported && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={pushPermission !== 'granted' ? handleEnableNotifications : undefined}
+                    className={`h-12 w-12 rounded-full ${
+                      pushPermission === 'granted' 
+                        ? 'text-success' 
+                        : pushPermission === 'denied' 
+                          ? 'text-destructive' 
+                          : 'text-muted-foreground'
+                    }`}
+                  >
+                    {pushPermission === 'granted' ? (
+                      <Bell className="h-6 w-6" />
+                    ) : pushPermission === 'denied' ? (
+                      <BellOff className="h-6 w-6" />
+                    ) : (
+                      <BellRing className="h-6 w-6" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-center">
+                  <p>{getNotificationTooltip()}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {/* Voice Status */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={toggleVoice}
+                  className={`h-12 w-12 rounded-full ${voiceEnabled ? 'text-primary' : 'text-muted-foreground'}`}
+                >
+                  {voiceEnabled ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>{voiceEnabled ? 'Voice reminders enabled' : 'Voice reminders disabled'}</p>
+              </TooltipContent>
+            </Tooltip>
+            {isListening && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/30">
+                <Mic className="h-4 w-4 text-primary animate-pulse" />
+                <span className="text-sm text-primary font-medium">Listening...</span>
+              </div>
+            )}
+            <Button variant="outline" size="icon" onClick={handleLogout} className="h-12 w-12 rounded-full border-2">
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
+        </header>
 
       {/* Patient Link Section */}
       <PatientLinkSection />
@@ -385,6 +405,7 @@ export default function PatientDashboard() {
           ))
         )}
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
