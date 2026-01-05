@@ -6,7 +6,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Check, Clock, Bell, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, VolumeX, BellRing } from 'lucide-react';
+import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, VolumeX, BellRing } from 'lucide-react';
 import PatientLinkSection from '@/components/patient/PatientLinkSection';
 import AdherenceChart from '@/components/patient/AdherenceChart';
 import MedicationCalendar from '@/components/patient/MedicationCalendar';
@@ -160,6 +160,36 @@ export default function PatientDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Notification Status */}
+          {pushSupported && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={pushPermission !== 'granted' ? handleEnableNotifications : undefined}
+              className={`h-12 w-12 rounded-full ${
+                pushPermission === 'granted' 
+                  ? 'text-success' 
+                  : pushPermission === 'denied' 
+                    ? 'text-destructive' 
+                    : 'text-muted-foreground'
+              }`}
+              title={
+                pushPermission === 'granted' 
+                  ? 'Notifications enabled' 
+                  : pushPermission === 'denied' 
+                    ? 'Notifications blocked' 
+                    : 'Click to enable notifications'
+              }
+            >
+              {pushPermission === 'granted' ? (
+                <Bell className="h-6 w-6" />
+              ) : pushPermission === 'denied' ? (
+                <BellOff className="h-6 w-6" />
+              ) : (
+                <BellRing className="h-6 w-6" />
+              )}
+            </Button>
+          )}
           {/* Voice Status */}
           <Button 
             variant="ghost" 
