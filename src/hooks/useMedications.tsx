@@ -202,19 +202,24 @@ export function useMedications(patientId?: string) {
   };
 
   const markAsTaken = async (logId: string) => {
+    console.log('markAsTaken called with logId:', logId);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('medication_logs')
         .update({
           status: 'taken',
           action_taken_at: new Date().toISOString()
         })
-        .eq('id', logId);
+        .eq('id', logId)
+        .select();
+
+      console.log('Supabase update result:', { data, error });
 
       if (error) throw error;
       await fetchTodayLogs();
       return { error: null };
     } catch (error) {
+      console.error('markAsTaken error:', error);
       return { error: error as Error };
     }
   };

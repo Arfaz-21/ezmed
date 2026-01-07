@@ -30,13 +30,21 @@ export default function PatientDashboard() {
   const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
 
   const handleTaken = async (logId: string) => {
-    const { error } = await markAsTaken(logId);
-    if (error) {
-      toast({ title: 'Error', description: 'Could not mark as taken', variant: 'destructive' });
-    } else {
-      toast({ title: '✓ Medication Taken', description: 'Great job!' });
-      setActiveLog(null);
-      setShowSnoozeOptions(false);
+    console.log('handleTaken called with logId:', logId);
+    try {
+      const { error } = await markAsTaken(logId);
+      console.log('markAsTaken result:', { error });
+      if (error) {
+        console.error('markAsTaken error:', error);
+        toast({ title: 'Error', description: 'Could not mark as taken', variant: 'destructive' });
+      } else {
+        toast({ title: '✓ Medication Taken', description: 'Great job!' });
+        setActiveLog(null);
+        setShowSnoozeOptions(false);
+      }
+    } catch (e) {
+      console.error('handleTaken exception:', e);
+      toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' });
     }
   };
 
