@@ -55,7 +55,16 @@ export default function PatientDashboard() {
   };
 
   // Voice reminder hook with callbacks
-  const { isListening, voiceEnabled, toggleVoice, clearActiveReminder } = useVoiceReminder(
+  const { 
+    isListening, 
+    voiceEnabled, 
+    toggleVoice, 
+    clearActiveReminder,
+    transcript,
+    lastCommand,
+    error: voiceError,
+    isSupported: voiceSupported
+  } = useVoiceReminder(
     todayLogs, 
     (log) => {
       setActiveLog(log);
@@ -222,9 +231,9 @@ export default function PatientDashboard() {
               </TooltipContent>
             </Tooltip>
             {isListening && (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/30">
-                <Mic className="h-4 w-4 text-primary animate-pulse" />
-                <span className="text-sm text-primary font-medium">Listening...</span>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-primary/10 border-2 border-primary/50 shadow-lg animate-pulse">
+                <Mic className="h-5 w-5 text-primary" />
+                <span className="text-sm text-primary font-bold">Listening...</span>
               </div>
             )}
             <Tooltip>
@@ -314,12 +323,67 @@ export default function PatientDashboard() {
               {formatTime(nextPending.scheduled_time)}
             </p>
 
-            {/* Voice instruction hint */}
-            {voiceEnabled && (
-              <div className="mb-4 p-3 rounded-lg bg-muted/50 border border-border">
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                  <Mic className="h-4 w-4" />
-                  Say "Taken" or "Snooze" to respond with voice
+            {/* Voice feedback section */}
+            {voiceEnabled && voiceSupported && (
+              <div className="mb-4 space-y-2">
+                {/* Listening indicator with transcript */}
+                {isListening && (
+                  <div className="p-4 rounded-xl bg-primary/10 border-2 border-primary/30 animate-pulse">
+                    <div className="flex items-center justify-center gap-3 mb-2">
+                      <div className="relative">
+                        <Mic className="h-6 w-6 text-primary" />
+                        <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full animate-ping" />
+                      </div>
+                      <span className="text-lg font-bold text-primary">Listening...</span>
+                    </div>
+                    {transcript && (
+                      <p className="text-center text-muted-foreground italic">
+                        "{transcript}"
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Last command feedback */}
+                {lastCommand && !isListening && (
+                  <div className={`p-3 rounded-lg border ${
+                    lastCommand.recognized 
+                      ? 'bg-success/10 border-success/30 text-success' 
+                      : 'bg-warning/10 border-warning/30 text-warning'
+                  }`}>
+                    <p className="text-sm text-center">
+                      {lastCommand.recognized 
+                        ? `✓ Recognized: "${lastCommand.text}"` 
+                        : `? Didn't understand: "${lastCommand.text}". Try saying "Taken" or "Snooze".`
+                      }
+                    </p>
+                  </div>
+                )}
+                
+                {/* Voice error */}
+                {voiceError && (
+                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                    <p className="text-sm text-destructive text-center">{voiceError}</p>
+                  </div>
+                )}
+                
+                {/* Voice instruction hint */}
+                {!isListening && !lastCommand && (
+                  <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                    <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                      <Mic className="h-4 w-4" />
+                      Say "Taken" or "Snooze" to respond with voice
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Voice not supported warning */}
+            {voiceEnabled && !voiceSupported && (
+              <div className="mb-4 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                <p className="text-sm text-warning text-center">
+                  Voice commands are not supported in this browser. Please use the buttons below.
                 </p>
               </div>
             )}

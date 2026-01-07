@@ -55,8 +55,57 @@ interface VoiceReminderOptions {
   onSnooze?: (logId: string, minutes: number) => void;
 }
 
+interface VoiceSettings {
+  voiceRemindersEnabled: boolean;
+  voiceVolume: number;
+  repeatInterval: number;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+}
+
+const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
+  voiceRemindersEnabled: true,
+  voiceVolume: 80,
+  repeatInterval: 1,
+  quietHoursEnabled: false,
+  quietHoursStart: '22:00',
+  quietHoursEnd: '07:00',
+};
+
 // Store scheduled reminders to trigger at exact times
 const scheduledReminders = new Map<string, ReturnType<typeof setTimeout>>();
+
+// Helper to check if we're in quiet hours
+const isInQuietHours = (settings: VoiceSettings): boolean => {
+  if (!settings.quietHoursEnabled) return false;
+  
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  
+  const [startHour, startMin] = settings.quietHoursStart.split(':').map(Number);
+  const [endHour, endMin] = settings.quietHoursEnd.split(':').map(Number);
+  
+  const startMinutes = startHour * 60 + startMin;
+  const endMinutes = endHour * 60 + endMin;
+  
+  // Handle overnight quiet hours (e.g., 22:00 to 07:00)
+  if (startMinutes > endMinutes) {
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  }
+  
+  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+};
+
+// Helper to get settings from localStorage
+const getVoiceSettings = (): VoiceSettings => {
+  try {
+    const saved = localStorage.getItem('medease-settings');
+    return saved ? { ...DEFAULT_VOICE_SETTINGS, ...JSON.parse(saved) } : DEFAULT_VOICE_SETTINGS;
+  } catch {
+    return DEFAULT_VOICE_SETTINGS;
+  }
+};
 
 export function useVoiceReminder(
   logs: MedicationLog[],
@@ -68,36 +117,53 @@ export function useVoiceReminder(
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [activeLogId, setActiveLogId] = useState<string | null>(null);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(() => getVoiceSettings().voiceRemindersEnabled);
+  const [transcript, setTranscript] = useState<string>('');
+  const [lastCommand, setLastCommand] = useState<{ text: string; recognized: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Check browser support
+  const isSupported = typeof window !== 'undefined' && 
+    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) &&
+    'speechSynthesis' in window;
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
-    if ('speechSynthesis' in window) {
-      // Cancel any ongoing speech
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.85; // Slower for elderly
-      utterance.pitch = 1;
-      utterance.volume = 1;
-      utterance.lang = 'en-US';
-
-      // Try to use a clear, friendly voice
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(v => 
-        v.name.includes('Samantha') || 
-        v.name.includes('Google US English') ||
-        v.name.includes('Microsoft Zira')
-      );
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-
-      utterance.onend = () => {
-        onEnd?.();
-      };
-      
-      window.speechSynthesis.speak(utterance);
+    if (!('speechSynthesis' in window)) return;
+    
+    const settings = getVoiceSettings();
+    
+    // Check quiet hours
+    if (isInQuietHours(settings)) {
+      console.log('In quiet hours, skipping voice');
+      onEnd?.();
+      return;
     }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.85; // Slower for elderly
+    utterance.pitch = 1;
+    utterance.volume = settings.voiceVolume / 100;
+    utterance.lang = 'en-US';
+
+    // Try to use a clear, friendly voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => 
+      v.name.includes('Samantha') || 
+      v.name.includes('Google US English') ||
+      v.name.includes('Microsoft Zira')
+    );
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
+    utterance.onend = () => {
+      onEnd?.();
+    };
+    
+    window.speechSynthesis.speak(utterance);
   }, []);
 
   const stopListening = useCallback(() => {
@@ -106,11 +172,14 @@ export function useVoiceReminder(
       recognitionRef.current = null;
     }
     setIsListening(false);
+    setTranscript('');
   }, []);
 
   const clearActiveReminder = useCallback(() => {
     activeReminderRef.current = null;
     setActiveLogId(null);
+    setTranscript('');
+    setLastCommand(null);
     stopListening();
     if (repeatIntervalRef.current) {
       clearInterval(repeatIntervalRef.current);
@@ -118,8 +187,8 @@ export function useVoiceReminder(
     }
   }, [stopListening]);
 
-  const processVoiceCommand = useCallback((transcript: string, logId: string) => {
-    const lower = transcript.toLowerCase().trim();
+  const processVoiceCommand = useCallback((transcriptText: string, logId: string): boolean => {
+    const lower = transcriptText.toLowerCase().trim();
     console.log('Processing voice command:', lower);
 
     // Check for "taken" command - expanded keywords
@@ -133,6 +202,7 @@ export function useVoiceReminder(
       lower.includes('okay') ||
       lower.includes('ok')
     ) {
+      setLastCommand({ text: transcriptText, recognized: true });
       speak('Marking as taken. Great job!');
       options?.onTaken?.(logId);
       clearActiveReminder();
@@ -151,12 +221,14 @@ export function useVoiceReminder(
         minutes = 15;
       }
       
+      setLastCommand({ text: transcriptText, recognized: true });
       speak(`Snoozing for ${minutes} minutes.`);
       options?.onSnooze?.(logId, minutes);
       clearActiveReminder();
       return true;
     }
 
+    setLastCommand({ text: transcriptText, recognized: false });
     return false;
   }, [speak, options, clearActiveReminder]);
 
@@ -164,11 +236,14 @@ export function useVoiceReminder(
     // Check if browser supports speech recognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
+      setError('Speech recognition not supported in this browser');
       console.log('Speech recognition not supported');
       return;
     }
 
     stopListening(); // Stop any existing recognition
+    setError(null);
+    setTranscript('');
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
@@ -183,16 +258,23 @@ export function useVoiceReminder(
 
     recognition.onresult = (event) => {
       const last = event.results.length - 1;
-      const transcript = event.results[last][0].transcript;
+      const result = event.results[last];
+      const transcriptText = result[0].transcript;
       
-      if (event.results[last].isFinal) {
-        processVoiceCommand(transcript, logId);
+      // Show interim results
+      setTranscript(transcriptText);
+      
+      if (result.isFinal) {
+        processVoiceCommand(transcriptText, logId);
       }
     };
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      
+      if (event.error === 'not-allowed') {
+        setError('Microphone access denied. Please allow microphone access.');
+      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
         // Try to restart on error
         setTimeout(() => {
           if (activeReminderRef.current === logId) {
@@ -218,6 +300,7 @@ export function useVoiceReminder(
         }, 500);
       } else {
         setIsListening(false);
+        setTranscript('');
       }
     };
 
@@ -227,12 +310,21 @@ export function useVoiceReminder(
       recognition.start();
     } catch (e) {
       console.error('Could not start speech recognition:', e);
+      setError('Could not start voice recognition');
     }
   }, [stopListening, processVoiceCommand]);
 
   const triggerReminder = useCallback((log: MedicationLog) => {
     // Don't re-trigger if already active for this log
     if (activeReminderRef.current === log.id) return;
+    
+    const settings = getVoiceSettings();
+    
+    // Check quiet hours
+    if (isInQuietHours(settings)) {
+      console.log('In quiet hours, skipping reminder');
+      return;
+    }
     
     activeReminderRef.current = log.id;
     const medName = log.medications?.name || 'your medication';
@@ -247,13 +339,20 @@ export function useVoiceReminder(
     
     onReminderTriggered?.(log);
 
-    // Set up repeat reminders every 60 seconds until responded
+    // Set up repeat reminders based on settings
     if (repeatIntervalRef.current) {
       clearInterval(repeatIntervalRef.current);
     }
     
+    const repeatMs = settings.repeatInterval * 60 * 1000;
+    
     repeatIntervalRef.current = setInterval(() => {
       if (activeReminderRef.current === log.id) {
+        // Re-check quiet hours before repeating
+        if (isInQuietHours(getVoiceSettings())) {
+          console.log('Entered quiet hours, stopping repeats');
+          return;
+        }
         console.log('Repeating reminder for:', medName);
         speak(`Reminder: Please take ${medName}. Say taken, or snooze.`, () => {
           startListening(log.id);
@@ -264,7 +363,7 @@ export function useVoiceReminder(
           repeatIntervalRef.current = null;
         }
       }
-    }, 60000);
+    }, repeatMs);
   }, [speak, startListening, onReminderTriggered]);
 
   // Schedule reminders at exact times
@@ -284,21 +383,38 @@ export function useVoiceReminder(
     console.log(`Scheduling reminder for ${log.medications?.name} at ${targetTime.toLocaleTimeString()}, in ${Math.round(delay / 1000)}s`);
     
     const timeout = setTimeout(() => {
-      if (voiceEnabled) {
+      const settings = getVoiceSettings();
+      if (settings.voiceRemindersEnabled && !isInQuietHours(settings)) {
         triggerReminder(log);
       }
       scheduledReminders.delete(key);
     }, delay);
     
     scheduledReminders.set(key, timeout);
-  }, [triggerReminder, voiceEnabled]);
+  }, [triggerReminder]);
+
+  // Sync voiceEnabled state with settings
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const settings = getVoiceSettings();
+      setVoiceEnabled(settings.voiceRemindersEnabled);
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check on mount
+    const settings = getVoiceSettings();
+    setVoiceEnabled(settings.voiceRemindersEnabled);
+    
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Check and schedule reminders
   useEffect(() => {
-    if (!voiceEnabled) return;
+    const settings = getVoiceSettings();
+    if (!settings.voiceRemindersEnabled) return;
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
 
     logs.forEach(log => {
       if (log.status !== 'pending' && log.status !== 'snoozed') return;
@@ -338,12 +454,12 @@ export function useVoiceReminder(
 
     // Cleanup function
     return () => {
-      scheduledReminders.forEach((timeout, key) => {
+      scheduledReminders.forEach((timeout) => {
         clearTimeout(timeout);
       });
       scheduledReminders.clear();
     };
-  }, [logs, voiceEnabled, triggerReminder, scheduleReminder]);
+  }, [logs, triggerReminder, scheduleReminder]);
 
   // Load voices on mount
   useEffect(() => {
@@ -368,8 +484,25 @@ export function useVoiceReminder(
   }, [speak]);
 
   const toggleVoice = useCallback(() => {
-    setVoiceEnabled(prev => !prev);
+    setVoiceEnabled(prev => {
+      const newValue = !prev;
+      // Also update localStorage
+      try {
+        const saved = localStorage.getItem('medease-settings');
+        const settings = saved ? JSON.parse(saved) : {};
+        settings.voiceRemindersEnabled = newValue;
+        localStorage.setItem('medease-settings', JSON.stringify(settings));
+      } catch (e) {
+        console.error('Could not save voice setting', e);
+      }
+      return newValue;
+    });
   }, []);
+
+  // Test voice function
+  const testVoice = useCallback(() => {
+    speak('Voice reminders are working correctly. Say taken or snooze to respond.');
+  }, [speak]);
 
   return { 
     speakNow, 
@@ -379,6 +512,11 @@ export function useVoiceReminder(
     toggleVoice,
     startListening,
     stopListening,
-    clearActiveReminder
+    clearActiveReminder,
+    transcript,
+    lastCommand,
+    error,
+    isSupported,
+    testVoice,
   };
 }

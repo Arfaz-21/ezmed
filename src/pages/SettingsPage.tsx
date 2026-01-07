@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/hooks/useAuth';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useVoiceReminder } from '@/hooks/useVoiceReminder';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -11,7 +12,7 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, Bell, BellOff, BellRing, Volume2, VolumeX, 
-  Settings, Clock, Vibrate, Moon, Sun, Shield, Monitor
+  Settings, Clock, Vibrate, Moon, Sun, Shield, Monitor, Mic, Play
 } from 'lucide-react';
 
 interface UserSettings {
@@ -40,7 +41,9 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const { isSupported: pushSupported, permission: pushPermission, requestPermission } = usePushNotifications();
+  const { testVoice, isSupported: voiceSupported, isListening } = useVoiceReminder([], undefined, {});
   const [mounted, setMounted] = useState(false);
+  const [testingVoice, setTestingVoice] = useState(false);
   
   const [settings, setSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('medease-settings');
@@ -264,6 +267,37 @@ export default function SettingsPage() {
                     <p className="text-xs text-muted-foreground">
                       Voice reminders will repeat every {settings.repeatInterval} minute(s) until you respond
                     </p>
+                  </div>
+
+                  {/* Test Voice Button */}
+                  <div className="pt-2 border-t border-border">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setTestingVoice(true);
+                        testVoice();
+                        setTimeout(() => setTestingVoice(false), 3000);
+                      }}
+                      disabled={testingVoice || !voiceSupported}
+                    >
+                      {testingVoice ? (
+                        <>
+                          <Volume2 className="h-4 w-4 mr-2 animate-pulse" />
+                          Playing...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 mr-2" />
+                          Test Voice
+                        </>
+                      )}
+                    </Button>
+                    {!voiceSupported && (
+                      <p className="text-xs text-destructive mt-2">
+                        Voice features are not supported in this browser.
+                      </p>
+                    )}
                   </div>
                 </>
               )}
