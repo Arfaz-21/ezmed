@@ -281,6 +281,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      verify_patient_code: { Args: { _code: string }; Returns: string }
     }
     Enums: {
       app_role: "patient" | "caregiver"
