@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from 'next-themes';
 import { useAuth } from '@/hooks/useAuth';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, Bell, BellOff, BellRing, Volume2, VolumeX, 
-  Settings, Clock, Vibrate, Moon, Sun, Shield
+  Settings, Clock, Vibrate, Moon, Sun, Shield, Monitor
 } from 'lucide-react';
 
 interface UserSettings {
@@ -37,12 +38,19 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   const { isSupported: pushSupported, permission: pushPermission, requestPermission } = usePushNotifications();
+  const [mounted, setMounted] = useState(false);
   
   const [settings, setSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('medease-settings');
     return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
   });
+
+  // Avoid hydration mismatch for theme
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
@@ -104,6 +112,50 @@ export default function SettingsPage() {
       </header>
 
       <div className="space-y-4 max-w-lg mx-auto">
+        {/* Theme / Dark Mode */}
+        <Card className="border-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              {mounted && theme === 'dark' ? (
+                <Moon className="h-5 w-5 text-primary" />
+              ) : (
+                <Sun className="h-5 w-5 text-primary" />
+              )}
+              Appearance
+            </CardTitle>
+            <CardDescription>
+              Choose your preferred color theme
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                variant={mounted && theme === 'light' ? 'default' : 'outline'}
+                className="flex flex-col items-center gap-2 h-auto py-4"
+                onClick={() => setTheme('light')}
+              >
+                <Sun className="h-5 w-5" />
+                <span className="text-xs">Light</span>
+              </Button>
+              <Button
+                variant={mounted && theme === 'dark' ? 'default' : 'outline'}
+                className="flex flex-col items-center gap-2 h-auto py-4"
+                onClick={() => setTheme('dark')}
+              >
+                <Moon className="h-5 w-5" />
+                <span className="text-xs">Dark</span>
+              </Button>
+              <Button
+                variant={mounted && theme === 'system' ? 'default' : 'outline'}
+                className="flex flex-col items-center gap-2 h-auto py-4"
+                onClick={() => setTheme('system')}
+              >
+                <Monitor className="h-5 w-5" />
+                <span className="text-xs">System</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         {/* Push Notifications */}
         <Card className="border-2">
           <CardHeader className="pb-3">
