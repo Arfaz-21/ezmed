@@ -20,6 +20,7 @@ import MedicationCalendar from '@/components/patient/MedicationCalendar';
 import HelpButton from '@/components/patient/HelpButton';
 import VoiceCommandsHelp from '@/components/patient/VoiceCommandsHelp';
 import VoiceCommandFeedback from '@/components/patient/VoiceCommandFeedback';
+import VoiceCommandPopup from '@/components/patient/VoiceCommandPopup';
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export default function PatientDashboard() {
   const { toast } = useToast();
   const [activeLog, setActiveLog] = useState<MedicationLog | null>(null);
   const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
+  const [showVoicePopup, setShowVoicePopup] = useState(false);
 
   const handleTaken = async (logId: string) => {
     console.log('handleTaken called with logId:', logId);
@@ -70,6 +72,7 @@ export default function PatientDashboard() {
     voiceEnabled, 
     toggleVoice, 
     clearActiveReminder,
+    startListening,
     transcript,
     lastCommand,
     error: voiceError,
@@ -80,24 +83,57 @@ export default function PatientDashboard() {
     todayLogs, 
     (log) => {
       setActiveLog(log);
+      setShowVoicePopup(true); // Show popup when reminder triggers
     },
     {
       onTaken: (logId) => {
         handleTaken(logId);
         clearActiveReminder();
+        setShowVoicePopup(false);
       },
       onSnooze: (logId, minutes) => {
         handleSnooze(logId, minutes);
         clearActiveReminder();
+        setShowVoicePopup(false);
       },
       onHelp: () => {
         toast({ title: 'Voice Commands', description: 'Say "Taken", "Snooze", "Skip", or "Cancel"' });
       },
       onCancel: () => {
         toast({ title: 'Cancelled', description: 'Voice listening stopped' });
+        setShowVoicePopup(false);
       },
     }
   );
+
+  // Show popup when there's a pending medication due now or overdue
+  useEffect(() => {
+    if (!loading && voiceEnabled && todayLogs.length > 0) {
+      const now = new Date();
+      const pendingDue = todayLogs.find(log => {
+        if (log.status !== 'pending' && log.status !== 'snoozed') return false;
+        
+        const [hours, minutes] = log.scheduled_time.split(':').map(Number);
+        const scheduledTime = new Date();
+        scheduledTime.setHours(hours, minutes, 0, 0);
+        
+        // Check if snoozed_until has passed
+        if (log.snoozed_until) {
+          const snoozedUntil = new Date(log.snoozed_until);
+          return now >= snoozedUntil;
+        }
+        
+        // Check if scheduled time has passed (within 30 min window)
+        const diffMinutes = (now.getTime() - scheduledTime.getTime()) / (1000 * 60);
+        return diffMinutes >= 0 && diffMinutes <= 30;
+      });
+      
+      if (pendingDue && !showVoicePopup && !activeLog) {
+        setActiveLog(pendingDue);
+        setShowVoicePopup(true);
+      }
+    }
+  }, [todayLogs, loading, voiceEnabled, showVoicePopup, activeLog]);
 
   // Push notifications
   const { isSupported: pushSupported, permission: pushPermission, requestPermission, scheduleNotification } = usePushNotifications();
@@ -187,6 +223,31 @@ export default function PatientDashboard() {
 
   return (
     <TooltipProvider>
+      {/* Voice Command Popup */}
+      <VoiceCommandPopup
+        isOpen={showVoicePopup && !!activeLog}
+        isListening={isListening}
+        transcript={transcript}
+        medicationName={activeLog?.medications?.name || 'Medication'}
+        onTaken={() => {
+          if (activeLog) handleTaken(activeLog.id);
+          setShowVoicePopup(false);
+        }}
+        onSnooze={() => {
+          if (activeLog) handleSnooze(activeLog.id, 10);
+          setShowVoicePopup(false);
+        }}
+        onClose={() => {
+          setShowVoicePopup(false);
+          setActiveLog(null);
+        }}
+        onStartListening={() => {
+          if (activeLog) startListening(activeLog.id);
+        }}
+        voiceSupported={voiceSupported}
+        confidence={confidence}
+      />
+
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 pb-24">
         {/* Header */}
         <header className="flex justify-between items-center mb-6">
