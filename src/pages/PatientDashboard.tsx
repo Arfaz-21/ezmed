@@ -18,6 +18,8 @@ import PatientLinkSection from '@/components/patient/PatientLinkSection';
 import AdherenceChart from '@/components/patient/AdherenceChart';
 import MedicationCalendar from '@/components/patient/MedicationCalendar';
 import HelpButton from '@/components/patient/HelpButton';
+import VoiceCommandsHelp from '@/components/patient/VoiceCommandsHelp';
+import VoiceCommandFeedback from '@/components/patient/VoiceCommandFeedback';
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
@@ -63,7 +65,9 @@ export default function PatientDashboard() {
     transcript,
     lastCommand,
     error: voiceError,
-    isSupported: voiceSupported
+    confidence,
+    isSupported: voiceSupported,
+    language: voiceLanguage,
   } = useVoiceReminder(
     todayLogs, 
     (log) => {
@@ -77,7 +81,13 @@ export default function PatientDashboard() {
       onSnooze: (logId, minutes) => {
         handleSnooze(logId, minutes);
         clearActiveReminder();
-      }
+      },
+      onHelp: () => {
+        toast({ title: 'Voice Commands', description: 'Say "Taken", "Snooze", "Skip", or "Cancel"' });
+      },
+      onCancel: () => {
+        toast({ title: 'Cancelled', description: 'Voice listening stopped' });
+      },
     }
   );
 
@@ -236,6 +246,7 @@ export default function PatientDashboard() {
                 <span className="text-sm text-primary font-bold">Listening...</span>
               </div>
             )}
+            {voiceSupported && <VoiceCommandsHelp language={voiceLanguage} />}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
@@ -325,57 +336,14 @@ export default function PatientDashboard() {
 
             {/* Voice feedback section */}
             {voiceEnabled && voiceSupported && (
-              <div className="mb-4 space-y-2">
-                {/* Listening indicator with transcript */}
-                {isListening && (
-                  <div className="p-4 rounded-xl bg-primary/10 border-2 border-primary/30 animate-pulse">
-                    <div className="flex items-center justify-center gap-3 mb-2">
-                      <div className="relative">
-                        <Mic className="h-6 w-6 text-primary" />
-                        <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full animate-ping" />
-                      </div>
-                      <span className="text-lg font-bold text-primary">Listening...</span>
-                    </div>
-                    {transcript && (
-                      <p className="text-center text-muted-foreground italic">
-                        "{transcript}"
-                      </p>
-                    )}
-                  </div>
-                )}
-                
-                {/* Last command feedback */}
-                {lastCommand && !isListening && (
-                  <div className={`p-3 rounded-lg border ${
-                    lastCommand.recognized 
-                      ? 'bg-success/10 border-success/30 text-success' 
-                      : 'bg-warning/10 border-warning/30 text-warning'
-                  }`}>
-                    <p className="text-sm text-center">
-                      {lastCommand.recognized 
-                        ? `✓ Recognized: "${lastCommand.text}"` 
-                        : `? Didn't understand: "${lastCommand.text}". Try saying "Taken" or "Snooze".`
-                      }
-                    </p>
-                  </div>
-                )}
-                
-                {/* Voice error */}
-                {voiceError && (
-                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
-                    <p className="text-sm text-destructive text-center">{voiceError}</p>
-                  </div>
-                )}
-                
-                {/* Voice instruction hint */}
-                {!isListening && !lastCommand && (
-                  <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                    <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                      <Mic className="h-4 w-4" />
-                      Say "Taken" or "Snooze" to respond with voice
-                    </p>
-                  </div>
-                )}
+              <div className="mb-4">
+                <VoiceCommandFeedback
+                  isListening={isListening}
+                  transcript={transcript}
+                  lastCommand={lastCommand}
+                  confidence={confidence}
+                  error={voiceError}
+                />
               </div>
             )}
             

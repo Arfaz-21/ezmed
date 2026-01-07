@@ -9,10 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft, Bell, BellOff, BellRing, Volume2, VolumeX, 
-  Settings, Clock, Vibrate, Moon, Sun, Shield, Monitor, Mic, Play
+  Settings, Clock, Vibrate, Moon, Sun, Shield, Monitor, Mic, Play, Globe
 } from 'lucide-react';
 
 interface UserSettings {
@@ -23,6 +24,7 @@ interface UserSettings {
   quietHoursStart: string;
   quietHoursEnd: string;
   vibrationEnabled: boolean;
+  voiceLanguage: string;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -33,7 +35,17 @@ const DEFAULT_SETTINGS: UserSettings = {
   quietHoursStart: '22:00',
   quietHoursEnd: '07:00',
   vibrationEnabled: true,
+  voiceLanguage: 'en-US',
 };
+
+const LANGUAGE_OPTIONS = [
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'es-ES', label: 'Español' },
+  { value: 'fr-FR', label: 'Français' },
+  { value: 'de-DE', label: 'Deutsch' },
+  { value: 'pt-BR', label: 'Português' },
+  { value: 'zh-CN', label: '中文' },
+];
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -266,6 +278,32 @@ export default function SettingsPage() {
                     />
                     <p className="text-xs text-muted-foreground">
                       Voice reminders will repeat every {settings.repeatInterval} minute(s) until you respond
+                    </p>
+                  </div>
+
+                  {/* Language Selector */}
+                  <div className="space-y-3">
+                    <Label className="text-base flex items-center gap-2">
+                      <Globe className="h-4 w-4" />
+                      Voice Language
+                    </Label>
+                    <Select
+                      value={settings.voiceLanguage}
+                      onValueChange={(value) => updateSetting('voiceLanguage', value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGE_OPTIONS.map((lang) => (
+                          <SelectItem key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Voice commands and responses will be in this language
                     </p>
                   </div>
 
