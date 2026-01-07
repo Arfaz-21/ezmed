@@ -8,6 +8,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Mic, HelpCircle, Check, Clock, X, MessageSquare, Globe } from 'lucide-react';
 
@@ -234,13 +239,18 @@ export default function VoiceCommandsHelp({ language = 'en-US' }: VoiceCommandsH
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Mic className="h-4 w-4" />
-          <HelpCircle className="h-4 w-4" />
-          Voice Commands
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-2">
+              <HelpCircle className="h-5 w-5" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <p>Voice Commands Help</p>
+        </TooltipContent>
+      </Tooltip>
       <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

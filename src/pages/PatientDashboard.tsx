@@ -193,7 +193,7 @@ export default function PatientDashboard() {
               <p className="text-sm text-muted-foreground">Your health companion</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             {/* Notification Status */}
             {pushSupported && (
               <Tooltip>
@@ -262,9 +262,16 @@ export default function PatientDashboard() {
                 <p>Settings</p>
               </TooltipContent>
             </Tooltip>
-            <Button variant="outline" size="icon" onClick={handleLogout} className="h-12 w-12 rounded-full border-2">
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={handleLogout} className="h-12 w-12 rounded-full border-2">
+                  <LogOut className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Logout</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </header>
 
@@ -306,8 +313,8 @@ export default function PatientDashboard() {
 
       {/* Current Medication Alert */}
       {nextPending && (
-        <Card className={`mb-6 border-2 ${getStatusColor(nextPending.status)} shadow-xl overflow-hidden`}>
-          <div className="absolute inset-0 bg-gradient-to-br from-transparent to-primary/5" />
+        <Card className={`mb-6 border-2 ${getStatusColor(nextPending.status)} shadow-xl overflow-hidden relative`}>
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent to-primary/5 pointer-events-none" />
           <CardContent className="p-6 text-center relative">
             {/* Medicine Image */}
             {nextPending.medications?.image_url && (
