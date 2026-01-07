@@ -322,12 +322,12 @@ export default function PatientDashboard() {
                 <img 
                   src={nextPending.medications.image_url} 
                   alt={nextPending.medications.name}
-                  className="w-32 h-32 object-cover rounded-xl border-2 border-primary/20 shadow-lg"
+                  className="w-40 h-40 object-cover rounded-xl border-2 border-primary/20 shadow-lg"
                 />
               </div>
             )}
             {!nextPending.medications?.image_url && (
-              <div className="mb-4 inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
+              <div className="mb-4 inline-flex items-center justify-center w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
                 {getStatusIcon(nextPending.status)}
               </div>
             )}
@@ -431,7 +431,7 @@ export default function PatientDashboard() {
                     <img 
                       src={log.medications.image_url} 
                       alt={log.medications.name}
-                      className="w-20 h-20 object-cover rounded-lg border border-border"
+                      className="w-24 h-24 object-cover rounded-lg border border-border"
                     />
                   ) : (
                     <div className={`p-2 rounded-full ${
