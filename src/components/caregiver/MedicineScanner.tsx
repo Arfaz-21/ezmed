@@ -108,11 +108,13 @@ export default function MedicineScanner({ onConfirm, onCancel }: MedicineScanner
 
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage
+        // Use signed URL instead of public URL for privacy
+        const { data: signedUrlData, error: signedError } = await supabase.storage
           .from('medicine-images')
-          .getPublicUrl(fileName);
+          .createSignedUrl(fileName, 604800); // 7 days expiry
 
-        imageUrl = urlData.publicUrl;
+        if (signedError) throw signedError;
+        imageUrl = signedUrlData.signedUrl;
       }
 
       onConfirm(editedName.trim(), editedDosage.trim(), imageUrl);

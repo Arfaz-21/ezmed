@@ -92,18 +92,12 @@ export function useLinking() {
     setLoading(true);
 
     try {
-      // Find patient with this code
-      const { data: codeData, error: codeError } = await supabase
-        .from('patient_codes')
-        .select('patient_id, expires_at')
-        .eq('code', code.toUpperCase())
-        .maybeSingle();
+      // Verify patient code using secure RPC function (doesn't expose all codes)
+      const { data: patientId, error: verifyError } = await supabase
+        .rpc('verify_patient_code', { _code: code });
 
-      if (codeError) throw codeError;
-      if (!codeData) return { error: new Error('Invalid code') };
-      if (new Date(codeData.expires_at) < new Date()) {
-        return { error: new Error('Code has expired') };
-      }
+      if (verifyError) throw verifyError;
+      if (!patientId) return { error: new Error('Invalid or expired code') };
 
       // Check if already linked
       const { data: existingLink } = await supabase
@@ -120,7 +114,7 @@ export function useLinking() {
       const { error } = await supabase
         .from('patient_caregiver_links')
         .insert({
-          patient_id: codeData.patient_id,
+          patient_id: patientId,
           caregiver_id: user.id,
           status: 'pending'
         });
