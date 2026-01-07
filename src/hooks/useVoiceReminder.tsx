@@ -220,7 +220,7 @@ const isInQuietHours = (settings: VoiceSettings): boolean => {
 // Helper to get settings from localStorage
 const getVoiceSettings = (): VoiceSettings => {
   try {
-    const saved = localStorage.getItem('medease-settings');
+    const saved = localStorage.getItem('ezmed-settings');
     return saved ? { ...DEFAULT_VOICE_SETTINGS, ...JSON.parse(saved) } : DEFAULT_VOICE_SETTINGS;
   } catch {
     return DEFAULT_VOICE_SETTINGS;
@@ -647,10 +647,10 @@ export function useVoiceReminder(
       const newValue = !prev;
       // Also update localStorage
       try {
-        const saved = localStorage.getItem('medease-settings');
+        const saved = localStorage.getItem('ezmed-settings');
         const settings = saved ? JSON.parse(saved) : {};
         settings.voiceRemindersEnabled = newValue;
-        localStorage.setItem('medease-settings', JSON.stringify(settings));
+        localStorage.setItem('ezmed-settings', JSON.stringify(settings));
       } catch (e) {
         console.error('Could not save voice setting', e);
       }

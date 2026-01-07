@@ -15,8 +15,8 @@ interface PendingSnooze {
   medicationName?: string;
 }
 
-const STORAGE_KEY = 'medease_pending_actions';
-const SNOOZE_STORAGE_KEY = 'medease_pending_snoozes';
+const STORAGE_KEY = 'ezmed_pending_actions';
+const SNOOZE_STORAGE_KEY = 'ezmed_pending_snoozes';
 
 export function useOfflineSync(
   onSync: (action: PendingAction) => Promise<void>,

@@ -1,6 +1,6 @@
-// MedEase Service Worker for Push Notifications
+// ezMed Service Worker for Push Notifications
 
-const CACHE_NAME = 'medease-v1';
+const CACHE_NAME = 'ezmed-v1';
 
 // Install event
 self.addEventListener('install', (event) => {

@@ -188,7 +188,7 @@ export default function PatientDashboard() {
             </div>
             <div>
               <h1 className="text-elderly-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                MedEase
+                ezMed
               </h1>
               <p className="text-sm text-muted-foreground">Your health companion</p>
             </div>

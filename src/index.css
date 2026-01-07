@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* MedEase - Warm Healthcare Design System */
+/* ezMed - Warm Healthcare Design System */
 @layer base {
   :root {
     --background: 210 40% 98%;

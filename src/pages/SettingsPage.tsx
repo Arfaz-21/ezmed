@@ -58,7 +58,7 @@ export default function SettingsPage() {
   const [testingVoice, setTestingVoice] = useState(false);
   
   const [settings, setSettings] = useState<UserSettings>(() => {
-    const saved = localStorage.getItem('medease-settings');
+    const saved = localStorage.getItem('ezmed-settings');
     return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
   });
 
@@ -69,7 +69,7 @@ export default function SettingsPage() {
 
   // Save settings to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('medease-settings', JSON.stringify(settings));
+    localStorage.setItem('ezmed-settings', JSON.stringify(settings));
   }, [settings]);
 
   const handleEnableNotifications = async () => {
