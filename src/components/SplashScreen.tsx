@@ -43,7 +43,7 @@ export default function SplashScreen({ onComplete, minDuration = 2000 }: SplashS
           <div className="w-28 h-28 rounded-2xl overflow-hidden shadow-2xl shadow-primary/25 animate-[bounce_2s_ease-in-out_infinite]" style={{ animationDuration: '2s' }}>
             <img 
               src={faviconLogo} 
-              alt="MedEase Logo" 
+              alt="ezMed Logo" 
               className="w-full h-full object-cover"
             />
           </div>
@@ -54,7 +54,7 @@ export default function SplashScreen({ onComplete, minDuration = 2000 }: SplashS
           className="mt-8 text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent animate-fade-in"
           style={{ animationDelay: '0.3s', animationFillMode: 'backwards' }}
         >
-          MedEase
+          ezMed
         </h1>
         
         {/* Tagline */}

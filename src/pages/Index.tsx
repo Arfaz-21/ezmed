@@ -16,7 +16,7 @@ const Index = () => {
             <Pill className="h-16 w-16 text-primary" />
             <Heart className="h-12 w-12 text-destructive ml-2" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">MedEase</h1>
+          <h1 className="text-2xl font-bold text-foreground">ezMed</h1>
           <p className="text-muted-foreground mt-2">Loading...</p>
         </div>
       </div>

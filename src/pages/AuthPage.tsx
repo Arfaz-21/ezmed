@@ -77,7 +77,7 @@ export default function AuthPage() {
         } else {
           toast({
             title: 'Account Created!',
-            description: 'Welcome to MedEase. Please select your role.'
+            description: 'Welcome to ezMed. Please select your role.'
           });
           navigate('/');
         }
@@ -103,7 +103,7 @@ export default function AuthPage() {
               <Heart className="h-8 w-8 text-destructive" />
             </div>
           </div>
-          <CardTitle className="text-elderly-lg font-bold">MedEase</CardTitle>
+          <CardTitle className="text-elderly-lg font-bold">ezMed</CardTitle>
           <CardDescription className="text-lg">
             {isLogin ? 'Welcome back!' : 'Create your account'}
           </CardDescription>
