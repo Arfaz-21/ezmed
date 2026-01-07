@@ -281,7 +281,7 @@ function LinkedCaregiverDashboard({
             <Users className="h-8 w-8 text-secondary" />
             <h1 className="text-xl font-bold">Caregiver Dashboard</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
             {/* Notification Status */}
             {pushSupported && (
               <Tooltip>
@@ -323,12 +323,26 @@ function LinkedCaregiverDashboard({
                 <p>Settings</p>
               </TooltipContent>
             </Tooltip>
-            <Button variant="outline" size="icon" onClick={onUnlink} className="h-10 w-10">
-              <Unlink className="h-5 w-5" />
-            </Button>
-            <Button variant="outline" size="icon" onClick={onSignOut} className="h-10 w-10">
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={onUnlink} className="h-10 w-10">
+                  <Unlink className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Unlink Patient</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={onSignOut} className="h-10 w-10">
+                  <LogOut className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Logout</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </header>
 
