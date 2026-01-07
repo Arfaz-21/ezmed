@@ -53,6 +53,9 @@ declare global {
 interface VoiceReminderOptions {
   onTaken?: (logId: string) => void;
   onSnooze?: (logId: string, minutes: number) => void;
+  onSkip?: (logId: string) => void;
+  onHelp?: () => void;
+  onCancel?: () => void;
 }
 
 interface VoiceSettings {
@@ -62,6 +65,7 @@ interface VoiceSettings {
   quietHoursEnabled: boolean;
   quietHoursStart: string;
   quietHoursEnd: string;
+  voiceLanguage: string;
 }
 
 const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
@@ -71,6 +75,122 @@ const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   quietHoursEnabled: false,
   quietHoursStart: '22:00',
   quietHoursEnd: '07:00',
+  voiceLanguage: 'en-US',
+};
+
+// Multi-language command patterns
+const LANGUAGE_COMMANDS: Record<string, {
+  taken: string[];
+  snooze: string[];
+  skip: string[];
+  help: string[];
+  cancel: string[];
+  responses: {
+    taken: string;
+    snooze: (min: number) => string;
+    skip: string;
+    help: string;
+    notUnderstood: string;
+    reminder: (name: string) => string;
+    repeatReminder: (name: string) => string;
+  };
+}> = {
+  'en-US': {
+    taken: ['taken', 'take', 'took', 'i took it', 'done', 'yes', 'okay', 'ok', 'already', 'already done', 'i already took it'],
+    snooze: ['snooze', 'later', 'wait', 'remind me', 'remind me later', 'not now', 'come back'],
+    skip: ['skip', 'skip this', 'skip this one', 'not today', 'pass'],
+    help: ['help', 'what can i say', 'commands', 'what are the commands'],
+    cancel: ['cancel', 'never mind', 'stop', 'stop listening', 'quiet'],
+    responses: {
+      taken: 'Marking as taken. Great job!',
+      snooze: (min) => `Snoozing for ${min} minutes.`,
+      skip: 'Skipping this medication.',
+      help: 'You can say: Taken, to mark as taken. Snooze, to be reminded later. Skip, to skip this one. Or Cancel, to stop listening.',
+      notUnderstood: 'I didn\'t understand. Try saying Taken, Snooze, Skip, or Help.',
+      reminder: (name) => `It's time to take ${name}. Please say taken, snooze, or skip.`,
+      repeatReminder: (name) => `Reminder: Please take ${name}. Say taken, snooze, or skip.`,
+    },
+  },
+  'es-ES': {
+    taken: ['tomado', 'lo tomé', 'listo', 'sí', 'ya', 'ya lo hice', 'hecho'],
+    snooze: ['posponer', 'después', 'espera', 'recuérdame', 'más tarde', 'ahora no'],
+    skip: ['omitir', 'saltar', 'hoy no', 'pasar'],
+    help: ['ayuda', 'qué puedo decir', 'comandos'],
+    cancel: ['cancelar', 'olvídalo', 'parar', 'silencio'],
+    responses: {
+      taken: '¡Marcado como tomado. Buen trabajo!',
+      snooze: (min) => `Posponiendo por ${min} minutos.`,
+      skip: 'Omitiendo este medicamento.',
+      help: 'Puede decir: Tomado, para marcar. Posponer, para recordar después. Omitir, para saltar. O Cancelar.',
+      notUnderstood: 'No entendí. Diga Tomado, Posponer, Omitir o Ayuda.',
+      reminder: (name) => `Es hora de tomar ${name}. Diga tomado, posponer u omitir.`,
+      repeatReminder: (name) => `Recordatorio: Por favor tome ${name}. Diga tomado, posponer u omitir.`,
+    },
+  },
+  'fr-FR': {
+    taken: ['pris', 'je l\'ai pris', 'fait', 'oui', 'déjà', 'déjà fait'],
+    snooze: ['reporter', 'plus tard', 'attends', 'rappelle-moi', 'pas maintenant'],
+    skip: ['ignorer', 'sauter', 'pas aujourd\'hui', 'passer'],
+    help: ['aide', 'que puis-je dire', 'commandes'],
+    cancel: ['annuler', 'oublie', 'stop', 'silence'],
+    responses: {
+      taken: 'Marqué comme pris. Bien joué!',
+      snooze: (min) => `Reporté de ${min} minutes.`,
+      skip: 'Médicament ignoré.',
+      help: 'Vous pouvez dire: Pris, pour marquer. Reporter, pour rappeler plus tard. Ignorer, pour sauter. Ou Annuler.',
+      notUnderstood: 'Je n\'ai pas compris. Dites Pris, Reporter, Ignorer ou Aide.',
+      reminder: (name) => `C'est l'heure de prendre ${name}. Dites pris, reporter ou ignorer.`,
+      repeatReminder: (name) => `Rappel: Veuillez prendre ${name}. Dites pris, reporter ou ignorer.`,
+    },
+  },
+  'de-DE': {
+    taken: ['genommen', 'habe ich genommen', 'fertig', 'ja', 'schon', 'schon gemacht', 'erledigt'],
+    snooze: ['verschieben', 'später', 'warte', 'erinnere mich', 'nicht jetzt'],
+    skip: ['überspringen', 'heute nicht', 'auslassen'],
+    help: ['hilfe', 'was kann ich sagen', 'befehle'],
+    cancel: ['abbrechen', 'vergiss es', 'stop', 'ruhe'],
+    responses: {
+      taken: 'Als genommen markiert. Gut gemacht!',
+      snooze: (min) => `Verschoben um ${min} Minuten.`,
+      skip: 'Medikament übersprungen.',
+      help: 'Sie können sagen: Genommen, zum markieren. Verschieben, für später. Überspringen, zum auslassen. Oder Abbrechen.',
+      notUnderstood: 'Ich habe nicht verstanden. Sagen Sie Genommen, Verschieben, Überspringen oder Hilfe.',
+      reminder: (name) => `Zeit für ${name}. Sagen Sie genommen, verschieben oder überspringen.`,
+      repeatReminder: (name) => `Erinnerung: Bitte nehmen Sie ${name}. Sagen Sie genommen, verschieben oder überspringen.`,
+    },
+  },
+  'pt-BR': {
+    taken: ['tomado', 'eu tomei', 'pronto', 'sim', 'já', 'já fiz', 'feito'],
+    snooze: ['adiar', 'depois', 'espere', 'me lembre', 'mais tarde', 'agora não'],
+    skip: ['pular', 'hoje não', 'passar'],
+    help: ['ajuda', 'o que posso dizer', 'comandos'],
+    cancel: ['cancelar', 'esquece', 'parar', 'silêncio'],
+    responses: {
+      taken: 'Marcado como tomado. Muito bem!',
+      snooze: (min) => `Adiado por ${min} minutos.`,
+      skip: 'Pulando este medicamento.',
+      help: 'Você pode dizer: Tomado, para marcar. Adiar, para lembrar depois. Pular, para ignorar. Ou Cancelar.',
+      notUnderstood: 'Não entendi. Diga Tomado, Adiar, Pular ou Ajuda.',
+      reminder: (name) => `Hora de tomar ${name}. Diga tomado, adiar ou pular.`,
+      repeatReminder: (name) => `Lembrete: Por favor tome ${name}. Diga tomado, adiar ou pular.`,
+    },
+  },
+  'zh-CN': {
+    taken: ['已服用', '吃了', '完成', '是', '好了', '已经吃了'],
+    snooze: ['延后', '稍后', '等等', '提醒我', '待会儿', '现在不行'],
+    skip: ['跳过', '今天不要', '不吃'],
+    help: ['帮助', '我能说什么', '命令'],
+    cancel: ['取消', '算了', '停止', '安静'],
+    responses: {
+      taken: '已标记为服用。做得好！',
+      snooze: (min) => `延后${min}分钟。`,
+      skip: '跳过此药物。',
+      help: '您可以说：已服用，来标记。延后，稍后提醒。跳过，来跳过。或取消。',
+      notUnderstood: '我没听懂。说 已服用、延后、跳过 或 帮助。',
+      reminder: (name) => `该服用${name}了。说 已服用、延后 或 跳过。`,
+      repeatReminder: (name) => `提醒：请服用${name}。说 已服用、延后 或 跳过。`,
+    },
+  },
 };
 
 // Store scheduled reminders to trigger at exact times
@@ -119,13 +239,19 @@ export function useVoiceReminder(
   const [activeLogId, setActiveLogId] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(() => getVoiceSettings().voiceRemindersEnabled);
   const [transcript, setTranscript] = useState<string>('');
-  const [lastCommand, setLastCommand] = useState<{ text: string; recognized: boolean } | null>(null);
+  const [lastCommand, setLastCommand] = useState<{ text: string; recognized: boolean; command?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confidence, setConfidence] = useState<number>(0);
+  const [language, setLanguage] = useState<string>(() => getVoiceSettings().voiceLanguage);
 
   // Check browser support
   const isSupported = typeof window !== 'undefined' && 
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) &&
     'speechSynthesis' in window;
+
+  const getLanguageCommands = useCallback(() => {
+    return LANGUAGE_COMMANDS[language] || LANGUAGE_COMMANDS['en-US'];
+  }, [language]);
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
     if (!('speechSynthesis' in window)) return;
@@ -146,11 +272,12 @@ export function useVoiceReminder(
     utterance.rate = 0.85; // Slower for elderly
     utterance.pitch = 1;
     utterance.volume = settings.voiceVolume / 100;
-    utterance.lang = 'en-US';
+    utterance.lang = settings.voiceLanguage;
 
     // Try to use a clear, friendly voice
     const voices = window.speechSynthesis.getVoices();
     const preferredVoice = voices.find(v => 
+      v.lang.startsWith(settings.voiceLanguage.split('-')[0]) ||
       v.name.includes('Samantha') || 
       v.name.includes('Google US English') ||
       v.name.includes('Microsoft Zira')
@@ -173,6 +300,7 @@ export function useVoiceReminder(
     }
     setIsListening(false);
     setTranscript('');
+    setConfidence(0);
   }, []);
 
   const clearActiveReminder = useCallback(() => {
@@ -180,6 +308,7 @@ export function useVoiceReminder(
     setActiveLogId(null);
     setTranscript('');
     setLastCommand(null);
+    setConfidence(0);
     stopListening();
     if (repeatIntervalRef.current) {
       clearInterval(repeatIntervalRef.current);
@@ -187,50 +316,69 @@ export function useVoiceReminder(
     }
   }, [stopListening]);
 
-  const processVoiceCommand = useCallback((transcriptText: string, logId: string): boolean => {
+  const processVoiceCommand = useCallback((transcriptText: string, logId: string, conf: number): boolean => {
     const lower = transcriptText.toLowerCase().trim();
-    console.log('Processing voice command:', lower);
+    const langCommands = getLanguageCommands();
+    console.log('Processing voice command:', lower, 'confidence:', conf);
 
-    // Check for "taken" command - expanded keywords
-    if (
-      lower.includes('taken') || 
-      lower.includes('take') || 
-      lower.includes('took') ||
-      lower.includes('i took it') ||
-      lower.includes('done') || 
-      lower.includes('yes') ||
-      lower.includes('okay') ||
-      lower.includes('ok')
-    ) {
-      setLastCommand({ text: transcriptText, recognized: true });
-      speak('Marking as taken. Great job!');
+    setConfidence(conf);
+
+    // Check for "taken" command
+    if (langCommands.taken.some(cmd => lower.includes(cmd))) {
+      setLastCommand({ text: transcriptText, recognized: true, command: 'taken' });
+      speak(langCommands.responses.taken);
       options?.onTaken?.(logId);
       clearActiveReminder();
       return true;
     }
 
     // Check for snooze commands
-    const snoozeMatch = lower.match(/snooze(?:\s+for)?\s*(\d+)?\s*(?:minutes?|mins?)?/);
-    if (lower.includes('snooze') || lower.includes('later') || lower.includes('wait') || lower.includes('remind me')) {
+    const snoozeMatch = lower.match(/(\d+)/);
+    if (langCommands.snooze.some(cmd => lower.includes(cmd))) {
       let minutes = 5; // default
       if (snoozeMatch && snoozeMatch[1]) {
-        minutes = parseInt(snoozeMatch[1], 10);
-      } else if (lower.includes('10')) {
-        minutes = 10;
-      } else if (lower.includes('15')) {
-        minutes = 15;
+        const parsed = parseInt(snoozeMatch[1], 10);
+        if (parsed >= 1 && parsed <= 60) {
+          minutes = parsed;
+        }
       }
       
-      setLastCommand({ text: transcriptText, recognized: true });
-      speak(`Snoozing for ${minutes} minutes.`);
+      setLastCommand({ text: transcriptText, recognized: true, command: 'snooze' });
+      speak(langCommands.responses.snooze(minutes));
       options?.onSnooze?.(logId, minutes);
+      clearActiveReminder();
+      return true;
+    }
+
+    // Check for skip commands
+    if (langCommands.skip.some(cmd => lower.includes(cmd))) {
+      setLastCommand({ text: transcriptText, recognized: true, command: 'skip' });
+      speak(langCommands.responses.skip);
+      options?.onSkip?.(logId);
+      clearActiveReminder();
+      return true;
+    }
+
+    // Check for help commands
+    if (langCommands.help.some(cmd => lower.includes(cmd))) {
+      setLastCommand({ text: transcriptText, recognized: true, command: 'help' });
+      speak(langCommands.responses.help);
+      options?.onHelp?.();
+      return true;
+    }
+
+    // Check for cancel commands
+    if (langCommands.cancel.some(cmd => lower.includes(cmd))) {
+      setLastCommand({ text: transcriptText, recognized: true, command: 'cancel' });
+      window.speechSynthesis.cancel();
+      options?.onCancel?.();
       clearActiveReminder();
       return true;
     }
 
     setLastCommand({ text: transcriptText, recognized: false });
     return false;
-  }, [speak, options, clearActiveReminder]);
+  }, [speak, options, clearActiveReminder, getLanguageCommands]);
 
   const startListening = useCallback((logId: string) => {
     // Check if browser supports speech recognition
@@ -244,11 +392,13 @@ export function useVoiceReminder(
     stopListening(); // Stop any existing recognition
     setError(null);
     setTranscript('');
+    setConfidence(0);
 
+    const settings = getVoiceSettings();
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = settings.voiceLanguage;
 
     recognition.onstart = () => {
       setIsListening(true);
@@ -260,12 +410,14 @@ export function useVoiceReminder(
       const last = event.results.length - 1;
       const result = event.results[last];
       const transcriptText = result[0].transcript;
+      const conf = result[0].confidence;
       
       // Show interim results
       setTranscript(transcriptText);
+      setConfidence(conf);
       
       if (result.isFinal) {
-        processVoiceCommand(transcriptText, logId);
+        processVoiceCommand(transcriptText, logId, conf);
       }
     };
 
@@ -301,6 +453,7 @@ export function useVoiceReminder(
       } else {
         setIsListening(false);
         setTranscript('');
+        setConfidence(0);
       }
     };
 
@@ -319,6 +472,7 @@ export function useVoiceReminder(
     if (activeReminderRef.current === log.id) return;
     
     const settings = getVoiceSettings();
+    const langCommands = LANGUAGE_COMMANDS[settings.voiceLanguage] || LANGUAGE_COMMANDS['en-US'];
     
     // Check quiet hours
     if (isInQuietHours(settings)) {
@@ -328,7 +482,7 @@ export function useVoiceReminder(
     
     activeReminderRef.current = log.id;
     const medName = log.medications?.name || 'your medication';
-    const message = `It's time to take ${medName}. Please say taken, or snooze.`;
+    const message = langCommands.responses.reminder(medName);
     
     console.log('Triggering voice reminder for:', medName);
     
@@ -348,13 +502,16 @@ export function useVoiceReminder(
     
     repeatIntervalRef.current = setInterval(() => {
       if (activeReminderRef.current === log.id) {
+        const currentSettings = getVoiceSettings();
+        const currentLangCommands = LANGUAGE_COMMANDS[currentSettings.voiceLanguage] || LANGUAGE_COMMANDS['en-US'];
+        
         // Re-check quiet hours before repeating
-        if (isInQuietHours(getVoiceSettings())) {
+        if (isInQuietHours(currentSettings)) {
           console.log('Entered quiet hours, stopping repeats');
           return;
         }
         console.log('Repeating reminder for:', medName);
-        speak(`Reminder: Please take ${medName}. Say taken, or snooze.`, () => {
+        speak(currentLangCommands.responses.repeatReminder(medName), () => {
           startListening(log.id);
         });
       } else {
@@ -393,11 +550,12 @@ export function useVoiceReminder(
     scheduledReminders.set(key, timeout);
   }, [triggerReminder]);
 
-  // Sync voiceEnabled state with settings
+  // Sync voiceEnabled and language state with settings
   useEffect(() => {
     const handleStorageChange = () => {
       const settings = getVoiceSettings();
       setVoiceEnabled(settings.voiceRemindersEnabled);
+      setLanguage(settings.voiceLanguage);
     };
     
     window.addEventListener('storage', handleStorageChange);
@@ -405,6 +563,7 @@ export function useVoiceReminder(
     // Also check on mount
     const settings = getVoiceSettings();
     setVoiceEnabled(settings.voiceRemindersEnabled);
+    setLanguage(settings.voiceLanguage);
     
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
@@ -501,8 +660,12 @@ export function useVoiceReminder(
 
   // Test voice function
   const testVoice = useCallback(() => {
-    speak('Voice reminders are working correctly. Say taken or snooze to respond.');
-  }, [speak]);
+    const langCommands = getLanguageCommands();
+    speak(langCommands.responses.help);
+  }, [speak, getLanguageCommands]);
+
+  // Get available languages
+  const availableLanguages = Object.keys(LANGUAGE_COMMANDS);
 
   return { 
     speakNow, 
@@ -516,7 +679,10 @@ export function useVoiceReminder(
     transcript,
     lastCommand,
     error,
+    confidence,
     isSupported,
     testVoice,
+    language,
+    availableLanguages,
   };
 }
