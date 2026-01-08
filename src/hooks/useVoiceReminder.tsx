@@ -254,31 +254,43 @@ export function useVoiceReminder(
     setIsListening(false);
   }, []);
 
-  // CRITICAL: Clear all reminders and stop everything for a specific log
-  const clearActiveReminder = useCallback((logId?: string) => {
-    const targetLogId = logId || activeReminderRef.current;
+  // CRITICAL: Complete medication action - stops EVERYTHING and cleans up
+  // This is the SINGLE function that both buttons and voice commands use
+  const completeMedication = useCallback((logId: string) => {
+    console.log('completeMedication called for:', logId);
     
-    console.log('clearActiveReminder called for:', targetLogId);
+    // 1. Stop speech recognition IMMEDIATELY
+    isStoppedRef.current = true;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch (e) {
+        // Ignore abort errors
+      }
+      recognitionRef.current = null;
+    }
     
-    // Stop speech synthesis
+    // 2. Set isListening = false (removes "Listening..." indicator)
+    setIsListening(false);
+    
+    // 3. Stop speech synthesis
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
     
-    // Clear the specific log's reminders
-    if (targetLogId) {
-      clearRemindersForLog(targetLogId);
-    }
+    // 4. Clear ALL reminder timers and intervals for this log
+    clearRemindersForLog(logId);
     
-    // Reset active state
+    // 5. Reset active state
     activeReminderRef.current = null;
     setActiveLogId(null);
     setTranscript('');
     setConfidence(0);
-    
-    // Stop listening
-    stopListening();
-  }, [stopListening]);
+    setError(null);
+  }, []);
+
+  // Alias for backwards compatibility
+  const clearActiveReminder = completeMedication;
 
   // Parse voice command and return action type
   const parseVoiceCommand = useCallback((transcriptText: string): { action: ActionType | null; snoozeMinutes?: number } => {
@@ -320,20 +332,23 @@ export function useVoiceReminder(
 
   const processVoiceCommand = useCallback((transcriptText: string, logId: string, conf: number): boolean => {
     const langCommands = getLanguageCommands();
-    console.log('Processing voice command:', transcriptText, 'confidence:', conf);
+    
+    // CRITICAL: Normalize transcript - lowercase and trim
+    const normalizedText = transcriptText.toLowerCase().trim();
+    console.log('Processing voice command:', normalizedText, 'confidence:', conf);
 
     setConfidence(conf);
 
-    const { action, snoozeMinutes } = parseVoiceCommand(transcriptText);
+    const { action, snoozeMinutes } = parseVoiceCommand(normalizedText);
 
     if (action === 'taken') {
       setLastCommand({ text: transcriptText, recognized: true, command: 'taken' });
+      
+      // FIRST: Complete medication (stops everything)
+      completeMedication(logId);
+      
+      // THEN: Speak confirmation and trigger action
       speak(langCommands.responses.taken);
-      
-      // Clear reminders FIRST
-      clearActiveReminder(logId);
-      
-      // Then trigger action
       options?.onAction?.('taken', logId);
       return true;
     }
@@ -341,12 +356,12 @@ export function useVoiceReminder(
     if (action === 'snooze') {
       const minutes = snoozeMinutes || 10;
       setLastCommand({ text: transcriptText, recognized: true, command: 'snooze' });
+      
+      // FIRST: Complete medication (stops everything)
+      completeMedication(logId);
+      
+      // THEN: Speak confirmation and trigger action
       speak(langCommands.responses.snooze(minutes));
-      
-      // Clear reminders FIRST
-      clearActiveReminder(logId);
-      
-      // Then trigger action
       options?.onAction?.('snooze', logId, minutes);
       return true;
     }
@@ -360,8 +375,10 @@ export function useVoiceReminder(
 
     if (action === 'cancel') {
       setLastCommand({ text: transcriptText, recognized: true, command: 'cancel' });
-      window.speechSynthesis.cancel();
-      clearActiveReminder(logId);
+      
+      // Complete medication (stops everything)
+      completeMedication(logId);
+      
       options?.onAction?.('cancel', logId);
       return true;
     }
@@ -375,9 +392,15 @@ export function useVoiceReminder(
     speak(langCommands.responses.notUnderstood);
     
     return false;
-  }, [speak, options, clearActiveReminder, getLanguageCommands, parseVoiceCommand]);
+  }, [speak, options, completeMedication, getLanguageCommands, parseVoiceCommand]);
 
-  const startListening = useCallback((logId: string) => {
+  const startListening = useCallback((logId: string, log?: MedicationLog) => {
+    // SAFETY CHECK: Don't start listening for non-pending medications
+    if (log && log.status !== 'pending' && log.status !== 'snoozed') {
+      console.log('Not starting listening - medication status is:', log.status);
+      return;
+    }
+    
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       const errMsg = 'Speech recognition not supported in this browser';
@@ -387,12 +410,23 @@ export function useVoiceReminder(
       return;
     }
 
-    // Stop any existing recognition
-    stopListening();
+    // Stop any existing recognition first
+    isStoppedRef.current = true;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch (e) {
+        // Ignore
+      }
+      recognitionRef.current = null;
+    }
+    
+    // Reset state
     isStoppedRef.current = false;
     setError(null);
     setTranscript('');
     setConfidence(0);
+    setIsListening(false);
 
     const settings = getVoiceSettings();
     const recognition = new SpeechRecognition();
@@ -408,6 +442,9 @@ export function useVoiceReminder(
     };
 
     recognition.onresult = (event) => {
+      // Don't process if we've been stopped
+      if (isStoppedRef.current) return;
+      
       const last = event.results.length - 1;
       const result = event.results[last];
       const transcriptText = result[0].transcript;
@@ -428,27 +465,41 @@ export function useVoiceReminder(
         const errMsg = 'Microphone access denied. Please allow microphone access.';
         setError(errMsg);
         options?.onError?.(errMsg);
+        setIsListening(false);
       } else if (event.error === 'no-speech') {
-        // This is normal, don't show error but restart
+        // This is normal, don't show error but restart if still active
         if (!isStoppedRef.current && activeReminderRef.current === logId) {
           setTimeout(() => {
-            try {
-              recognition.start();
-            } catch (e) {
-              console.log('Could not restart recognition after no-speech');
+            if (!isStoppedRef.current && activeReminderRef.current === logId) {
+              try {
+                recognition.start();
+              } catch (e) {
+                console.log('Could not restart recognition after no-speech');
+                setIsListening(false);
+              }
             }
           }, 500);
+        } else {
+          setIsListening(false);
         }
-      } else if (event.error !== 'aborted') {
-        // Try to restart on other errors
+      } else if (event.error === 'aborted') {
+        // Explicitly aborted - ensure listening state is false
+        setIsListening(false);
+      } else {
+        // Try to restart on other errors if still active
         if (!isStoppedRef.current && activeReminderRef.current === logId) {
           setTimeout(() => {
-            try {
-              recognition.start();
-            } catch (e) {
-              console.log('Could not restart recognition');
+            if (!isStoppedRef.current && activeReminderRef.current === logId) {
+              try {
+                recognition.start();
+              } catch (e) {
+                console.log('Could not restart recognition');
+                setIsListening(false);
+              }
             }
           }, 1000);
+        } else {
+          setIsListening(false);
         }
       }
     };
@@ -457,13 +508,17 @@ export function useVoiceReminder(
       // Only restart if still active for this log and not manually stopped
       if (!isStoppedRef.current && activeReminderRef.current === logId) {
         setTimeout(() => {
-          try {
-            recognition.start();
-          } catch (e) {
-            console.log('Could not restart recognition on end');
+          if (!isStoppedRef.current && activeReminderRef.current === logId) {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.log('Could not restart recognition on end');
+              setIsListening(false);
+            }
           }
         }, 500);
       } else {
+        // CRITICAL: Always reset listening state when recognition ends
         setIsListening(false);
         setTranscript('');
         setConfidence(0);
@@ -479,18 +534,21 @@ export function useVoiceReminder(
       const errMsg = 'Could not start voice recognition';
       setError(errMsg);
       options?.onError?.(errMsg);
+      setIsListening(false);
     }
-  }, [stopListening, processVoiceCommand, options]);
+  }, [processVoiceCommand, options]);
 
   const triggerReminder = useCallback((log: MedicationLog) => {
-    // Don't re-trigger if already active for this log
-    if (activeReminderRef.current === log.id) return;
-    
-    // Don't trigger for non-pending/snoozed logs
+    // SAFETY CHECK: Don't trigger for non-pending/snoozed logs
     if (log.status !== 'pending' && log.status !== 'snoozed') {
-      console.log('Not triggering reminder - status is:', log.status);
+      console.log('SAFETY: Not triggering reminder - status is:', log.status);
+      // Clear any lingering reminders for this log
+      clearRemindersForLog(log.id);
       return;
     }
+    
+    // Don't re-trigger if already active for this log
+    if (activeReminderRef.current === log.id) return;
     
     const settings = getVoiceSettings();
     const langCommands = LANGUAGE_COMMANDS[settings.voiceLanguage] || LANGUAGE_COMMANDS['en-US'];
