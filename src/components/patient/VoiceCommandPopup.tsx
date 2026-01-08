@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Mic, MicOff, Check, Clock, X, Volume2 } from 'lucide-react';
+import { Mic, MicOff, Check, Clock, X, Volume2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,8 @@ interface VoiceCommandPopupProps {
   onStartListening: () => void;
   voiceSupported: boolean;
   confidence?: number;
+  lastHeardCommand?: string | null;
+  error?: string | null;
 }
 
 export default function VoiceCommandPopup({
@@ -27,6 +29,8 @@ export default function VoiceCommandPopup({
   onStartListening,
   voiceSupported,
   confidence = 0,
+  lastHeardCommand,
+  error,
 }: VoiceCommandPopupProps) {
   const [pulseCount, setPulseCount] = useState(0);
 
@@ -62,11 +66,12 @@ export default function VoiceCommandPopup({
               <div className="flex flex-col items-center mb-6">
                 <div 
                   className={cn(
-                    "relative w-32 h-32 rounded-full flex items-center justify-center transition-all duration-300",
+                    "relative w-32 h-32 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer",
                     isListening 
                       ? "bg-primary/20 border-4 border-primary animate-pulse" 
-                      : "bg-muted/30 border-4 border-muted-foreground/30"
+                      : "bg-muted/30 border-4 border-muted-foreground/30 hover:border-primary/50"
                   )}
+                  onClick={() => !isListening && onStartListening()}
                   key={pulseCount}
                 >
                   {isListening ? (
@@ -121,6 +126,25 @@ export default function VoiceCommandPopup({
                     </div>
                   )}
                 </div>
+                
+                {/* Last heard command feedback */}
+                {lastHeardCommand && (
+                  <div className="mt-3 p-2 bg-muted/30 rounded-lg">
+                    <p className="text-sm text-muted-foreground font-medium">
+                      {lastHeardCommand}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Error feedback */}
+                {error && (
+                  <div className="mt-3 p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
+                    <p className="text-sm text-destructive">
+                      {error}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="relative">

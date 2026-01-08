@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useMedications, MedicationLog } from '@/hooks/useMedications';
-import { useVoiceReminder } from '@/hooks/useVoiceReminder';
+import { useVoiceReminder, ActionType } from '@/hooks/useVoiceReminder';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, MicOff, Volume2, VolumeX, BellRing, Settings } from 'lucide-react';
+import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, Volume2, VolumeX, BellRing, Settings } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -30,43 +30,88 @@ export default function PatientDashboard() {
   const [activeLog, setActiveLog] = useState<MedicationLog | null>(null);
   const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
   const [showVoicePopup, setShowVoicePopup] = useState(false);
+  const [lastHeardCommand, setLastHeardCommand] = useState<string | null>(null);
 
-  const handleTaken = async (logId: string) => {
-    console.log('handleTaken called with logId:', logId);
-    try {
-      const { error } = await markAsTaken(logId);
-      console.log('markAsTaken result:', { error });
-      if (error) {
-        console.error('markAsTaken error:', error);
-        toast({ title: 'Error', description: 'Could not mark as taken', variant: 'destructive' });
-      } else {
-        toast({ title: '✓ Medication Taken', description: 'Great job!' });
-        setActiveLog(null);
-        setShowSnoozeOptions(false);
+  // Push notifications
+  const { 
+    isSupported: pushSupported, 
+    permission: pushPermission, 
+    requestPermission, 
+    scheduleNotification,
+    clearScheduledNotification 
+  } = usePushNotifications();
+
+  // ========================================
+  // CENTRAL ACTION HANDLER
+  // Both buttons AND voice commands use this
+  // ========================================
+  const handleMedicationAction = useCallback(async (
+    actionType: ActionType,
+    logId: string,
+    snoozeMinutes?: number
+  ) => {
+    console.log('handleMedicationAction:', { actionType, logId, snoozeMinutes });
+    
+    // Clear any scheduled notification for this log
+    clearScheduledNotification(logId);
+    
+    switch (actionType) {
+      case 'taken': {
+        try {
+          const { error } = await markAsTaken(logId);
+          if (error) {
+            console.error('markAsTaken error:', error);
+            toast({ title: 'Error', description: 'Could not mark as taken', variant: 'destructive' });
+          } else {
+            toast({ title: '✓ Medication marked as taken', description: 'Great job!' });
+            setActiveLog(null);
+            setShowSnoozeOptions(false);
+            setShowVoicePopup(false);
+          }
+        } catch (e) {
+          console.error('handleMedicationAction exception:', e);
+          toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' });
+        }
+        break;
       }
-    } catch (e) {
-      console.error('handleTaken exception:', e);
-      toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' });
+      
+      case 'snooze': {
+        const minutes = snoozeMinutes || 10;
+        const result = await snooze(logId, minutes);
+        if (result.error) {
+          toast({ title: 'Error', description: 'Could not snooze', variant: 'destructive' });
+        } else {
+          toast({ 
+            title: `⏰ Snoozed for ${minutes} minutes`,
+            description: result.snoozeCount && result.snoozeCount >= 3 
+              ? 'Your caregiver has been notified' 
+              : undefined
+          });
+          setActiveLog(null);
+          setShowSnoozeOptions(false);
+          setShowVoicePopup(false);
+        }
+        break;
+      }
+      
+      case 'help': {
+        toast({ 
+          title: 'Voice Commands', 
+          description: 'Say "TAKEN" to mark as taken, or "SNOOZE" to be reminded later' 
+        });
+        break;
+      }
+      
+      case 'cancel': {
+        toast({ title: 'Dismissed', description: 'Reminder closed' });
+        setShowVoicePopup(false);
+        setActiveLog(null);
+        break;
+      }
     }
-  };
+  }, [markAsTaken, snooze, toast, clearScheduledNotification]);
 
-  const handleSnooze = async (logId: string, minutes: number) => {
-    const result = await snooze(logId, minutes);
-    if (result.error) {
-      toast({ title: 'Error', description: 'Could not snooze', variant: 'destructive' });
-    } else {
-      toast({ 
-        title: `⏰ Snoozed for ${minutes} minutes`,
-        description: result.snoozeCount && result.snoozeCount >= 3 
-          ? 'Your caregiver has been notified' 
-          : undefined
-      });
-      setActiveLog(null);
-      setShowSnoozeOptions(false);
-    }
-  };
-
-  // Voice reminder hook with callbacks
+  // Voice reminder hook with unified action handler
   const { 
     isListening, 
     voiceEnabled, 
@@ -82,33 +127,49 @@ export default function PatientDashboard() {
   } = useVoiceReminder(
     todayLogs, 
     (log) => {
+      // Called when reminder triggers
       setActiveLog(log);
-      setShowVoicePopup(true); // Show popup when reminder triggers
+      setShowVoicePopup(true);
     },
     {
-      onTaken: (logId) => {
-        handleTaken(logId);
-        clearActiveReminder();
-        setShowVoicePopup(false);
+      // CRITICAL: Voice commands use the same handler as buttons
+      onAction: (actionType, logId, snoozeMinutes) => {
+        // Update last heard command for UI feedback
+        if (actionType === 'taken') {
+          setLastHeardCommand('Heard: "Taken"');
+        } else if (actionType === 'snooze') {
+          setLastHeardCommand(`Heard: "Snooze ${snoozeMinutes || 10} minutes"`);
+        }
+        
+        // Clear the reminder state
+        clearActiveReminder(logId);
+        
+        // Execute the action
+        handleMedicationAction(actionType, logId, snoozeMinutes);
       },
-      onSnooze: (logId, minutes) => {
-        handleSnooze(logId, minutes);
-        clearActiveReminder();
-        setShowVoicePopup(false);
-      },
-      onHelp: () => {
-        toast({ title: 'Voice Commands', description: 'Say "Taken", "Snooze", "Skip", or "Cancel"' });
-      },
-      onCancel: () => {
-        toast({ title: 'Cancelled', description: 'Voice listening stopped' });
-        setShowVoicePopup(false);
-      },
+      onError: (errorMsg) => {
+        // Show error feedback when voice recognition fails
+        toast({ 
+          title: "Didn't catch that", 
+          description: 'Please try again or use the buttons',
+          variant: 'destructive'
+        });
+        setLastHeardCommand(`Heard: "${transcript}" (not recognized)`);
+      }
     }
   );
 
+  // Clear last heard command after 5 seconds
+  useEffect(() => {
+    if (lastHeardCommand) {
+      const timer = setTimeout(() => setLastHeardCommand(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastHeardCommand]);
+
   // Show popup when there's a pending medication due now or overdue
   useEffect(() => {
-    if (!loading && voiceEnabled && todayLogs.length > 0) {
+    if (!loading && voiceEnabled && todayLogs.length > 0 && !showVoicePopup && !activeLog) {
       const now = new Date();
       const pendingDue = todayLogs.find(log => {
         if (log.status !== 'pending' && log.status !== 'snoozed') return false;
@@ -128,30 +189,32 @@ export default function PatientDashboard() {
         return diffMinutes >= 0 && diffMinutes <= 30;
       });
       
-      if (pendingDue && !showVoicePopup && !activeLog) {
+      if (pendingDue) {
         setActiveLog(pendingDue);
         setShowVoicePopup(true);
       }
     }
   }, [todayLogs, loading, voiceEnabled, showVoicePopup, activeLog]);
 
-  // Push notifications
-  const { isSupported: pushSupported, permission: pushPermission, requestPermission, scheduleNotification } = usePushNotifications();
-
   // Schedule notifications for pending logs
   useEffect(() => {
     if (pushPermission === 'granted') {
-      todayLogs
-        .filter(log => log.status === 'pending')
-        .forEach(log => scheduleNotification(log));
+      todayLogs.forEach(log => {
+        if (log.status === 'pending') {
+          scheduleNotification(log);
+        } else {
+          // Clear notification if status changed
+          clearScheduledNotification(log.id);
+        }
+      });
     }
-  }, [todayLogs, pushPermission, scheduleNotification]);
+  }, [todayLogs, pushPermission, scheduleNotification, clearScheduledNotification]);
 
   const handleEnableNotifications = async () => {
     try {
       const granted = await requestPermission();
       if (granted) {
-        toast({ title: 'Notifications enabled!', description: 'You\'ll receive reminders even when the app is closed' });
+        toast({ title: 'Notifications enabled!', description: "You'll receive reminders even when the app is closed" });
       } else {
         toast({ title: 'Permission denied', description: 'Please allow notifications in your browser settings', variant: 'destructive' });
       }
@@ -172,7 +235,7 @@ export default function PatientDashboard() {
   };
 
   const getNotificationTooltip = () => {
-    if (pushPermission === 'granted') return 'Notifications are enabled. You\'ll receive reminders even when the app is closed.';
+    if (pushPermission === 'granted') return 'Notifications are enabled.';
     if (pushPermission === 'denied') return 'Notifications are blocked. Please enable them in your browser settings.';
     return 'Click to enable notifications for medication reminders.';
   };
@@ -230,14 +293,21 @@ export default function PatientDashboard() {
         transcript={transcript}
         medicationName={activeLog?.medications?.name || 'Medication'}
         onTaken={() => {
-          if (activeLog) handleTaken(activeLog.id);
-          setShowVoicePopup(false);
+          if (activeLog) {
+            clearActiveReminder(activeLog.id);
+            handleMedicationAction('taken', activeLog.id);
+          }
         }}
         onSnooze={() => {
-          if (activeLog) handleSnooze(activeLog.id, 10);
-          setShowVoicePopup(false);
+          if (activeLog) {
+            clearActiveReminder(activeLog.id);
+            handleMedicationAction('snooze', activeLog.id, 10);
+          }
         }}
         onClose={() => {
+          if (activeLog) {
+            clearActiveReminder(activeLog.id);
+          }
           setShowVoicePopup(false);
           setActiveLog(null);
         }}
@@ -246,6 +316,8 @@ export default function PatientDashboard() {
         }}
         voiceSupported={voiceSupported}
         confidence={confidence}
+        lastHeardCommand={lastHeardCommand}
+        error={voiceError}
       />
 
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 pb-24">
@@ -420,6 +492,11 @@ export default function PatientDashboard() {
                   confidence={confidence}
                   error={voiceError}
                 />
+                {lastHeardCommand && (
+                  <p className="text-sm text-muted-foreground mt-2 font-medium">
+                    {lastHeardCommand}
+                  </p>
+                )}
               </div>
             )}
             
@@ -435,7 +512,7 @@ export default function PatientDashboard() {
             {!showSnoozeOptions ? (
               <div className="space-y-4">
                 <Button
-                  onClick={() => handleTaken(nextPending.id)}
+                  onClick={() => handleMedicationAction('taken', nextPending.id)}
                   className="w-full h-24 text-elderly-lg font-bold bg-gradient-to-r from-success to-success/80 hover:from-success/90 hover:to-success/70 shadow-lg shadow-success/25"
                 >
                   <Check className="h-10 w-10 mr-4" />
@@ -456,7 +533,7 @@ export default function PatientDashboard() {
                 {[5, 10, 15].map(mins => (
                   <Button
                     key={mins}
-                    onClick={() => handleSnooze(nextPending.id, mins)}
+                    onClick={() => handleMedicationAction('snooze', nextPending.id, mins)}
                     variant="outline"
                     className="w-full h-16 text-elderly border-2 border-warning/50 hover:bg-warning/10 hover:border-warning"
                   >
