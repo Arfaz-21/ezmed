@@ -132,19 +132,22 @@ export default function PatientDashboard() {
       setShowVoicePopup(true);
     },
     {
-      // CRITICAL: Voice commands use the same handler as buttons
+      // CRITICAL: Voice commands use the SAME handler as buttons
       onAction: (actionType, logId, snoozeMinutes) => {
         // Update last heard command for UI feedback
         if (actionType === 'taken') {
           setLastHeardCommand('Heard: "Taken"');
         } else if (actionType === 'snooze') {
           setLastHeardCommand(`Heard: "Snooze ${snoozeMinutes || 10} minutes"`);
+        } else if (actionType === 'cancel') {
+          setLastHeardCommand('Heard: "Cancel"');
         }
         
-        // Clear the reminder state
-        clearActiveReminder(logId);
+        // Close popup immediately
+        setShowVoicePopup(false);
+        setActiveLog(null);
         
-        // Execute the action
+        // Execute the action using central handler
         handleMedicationAction(actionType, logId, snoozeMinutes);
       },
       onError: (errorMsg) => {
@@ -294,13 +297,18 @@ export default function PatientDashboard() {
         medicationName={activeLog?.medications?.name || 'Medication'}
         onTaken={() => {
           if (activeLog) {
+            // Use completeMedication via clearActiveReminder
             clearActiveReminder(activeLog.id);
+            setShowVoicePopup(false);
+            setActiveLog(null);
             handleMedicationAction('taken', activeLog.id);
           }
         }}
         onSnooze={() => {
           if (activeLog) {
             clearActiveReminder(activeLog.id);
+            setShowVoicePopup(false);
+            setActiveLog(null);
             handleMedicationAction('snooze', activeLog.id, 10);
           }
         }}
@@ -312,7 +320,7 @@ export default function PatientDashboard() {
           setActiveLog(null);
         }}
         onStartListening={() => {
-          if (activeLog) startListening(activeLog.id);
+          if (activeLog) startListening(activeLog.id, activeLog);
         }}
         voiceSupported={voiceSupported}
         confidence={confidence}
