@@ -50,12 +50,11 @@ declare global {
   }
 }
 
+export type ActionType = 'taken' | 'snooze' | 'help' | 'cancel';
+
 interface VoiceReminderOptions {
-  onTaken?: (logId: string) => void;
-  onSnooze?: (logId: string, minutes: number) => void;
-  onSkip?: (logId: string) => void;
-  onHelp?: () => void;
-  onCancel?: () => void;
+  onAction?: (actionType: ActionType, logId: string, snoozeMinutes?: number) => void;
+  onError?: (error: string) => void;
 }
 
 interface VoiceSettings {
@@ -78,17 +77,15 @@ const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   voiceLanguage: 'en-US',
 };
 
-// Multi-language command patterns
+// Multi-language command patterns - expanded to handle more phrases
 const LANGUAGE_COMMANDS: Record<string, {
   taken: string[];
   snooze: string[];
-  skip: string[];
   help: string[];
   cancel: string[];
   responses: {
     taken: string;
     snooze: (min: number) => string;
-    skip: string;
     help: string;
     notUnderstood: string;
     reminder: (name: string) => string;
@@ -96,105 +93,39 @@ const LANGUAGE_COMMANDS: Record<string, {
   };
 }> = {
   'en-US': {
-    taken: ['taken', 'take', 'took', 'i took it', 'done', 'yes', 'okay', 'ok', 'already', 'already done', 'i already took it'],
-    snooze: ['snooze', 'later', 'wait', 'remind me', 'remind me later', 'not now', 'come back'],
-    skip: ['skip', 'skip this', 'skip this one', 'not today', 'pass'],
-    help: ['help', 'what can i say', 'commands', 'what are the commands'],
-    cancel: ['cancel', 'never mind', 'stop', 'stop listening', 'quiet'],
+    taken: ['taken', 'take', 'took', 'i took it', 'done', 'yes', 'okay', 'ok', 'already', 'already done', 'i already took it', 'i took my medicine', 'took my medicine', 'i have taken', 'finished', 'complete', 'completed', 'i did', 'did it', 'mark as taken', 'mark taken'],
+    snooze: ['snooze', 'later', 'wait', 'remind me', 'remind me later', 'not now', 'come back', 'snooze for', 'delay', 'postpone', 'in a bit', 'in a while', 'few minutes', 'later please', 'not yet'],
+    help: ['help', 'what can i say', 'commands', 'what are the commands', 'options', 'what should i say'],
+    cancel: ['cancel', 'never mind', 'stop', 'stop listening', 'quiet', 'dismiss', 'close', 'exit', 'go away'],
     responses: {
       taken: 'Marking as taken. Great job!',
       snooze: (min) => `Snoozing for ${min} minutes.`,
-      skip: 'Skipping this medication.',
-      help: 'You can say: Taken, to mark as taken. Snooze, to be reminded later. Skip, to skip this one. Or Cancel, to stop listening.',
-      notUnderstood: 'I didn\'t understand. Try saying Taken, Snooze, Skip, or Help.',
-      reminder: (name) => `It's time to take ${name}. Please say taken, snooze, or skip.`,
-      repeatReminder: (name) => `Reminder: Please take ${name}. Say taken, snooze, or skip.`,
+      help: 'You can say: Taken, to mark as taken. Snooze, to be reminded later. Or Cancel, to stop listening.',
+      notUnderstood: "Didn't catch that, please try again. Say Taken, Snooze, or Help.",
+      reminder: (name) => `It's time to take ${name}. Please say taken or snooze.`,
+      repeatReminder: (name) => `Reminder: Please take ${name}. Say taken or snooze.`,
     },
   },
   'es-ES': {
-    taken: ['tomado', 'lo tomé', 'listo', 'sí', 'ya', 'ya lo hice', 'hecho'],
-    snooze: ['posponer', 'después', 'espera', 'recuérdame', 'más tarde', 'ahora no'],
-    skip: ['omitir', 'saltar', 'hoy no', 'pasar'],
-    help: ['ayuda', 'qué puedo decir', 'comandos'],
-    cancel: ['cancelar', 'olvídalo', 'parar', 'silencio'],
+    taken: ['tomado', 'lo tomé', 'listo', 'sí', 'ya', 'ya lo hice', 'hecho', 'terminado'],
+    snooze: ['posponer', 'después', 'espera', 'recuérdame', 'más tarde', 'ahora no', 'retrasar'],
+    help: ['ayuda', 'qué puedo decir', 'comandos', 'opciones'],
+    cancel: ['cancelar', 'olvídalo', 'parar', 'silencio', 'cerrar'],
     responses: {
       taken: '¡Marcado como tomado. Buen trabajo!',
       snooze: (min) => `Posponiendo por ${min} minutos.`,
-      skip: 'Omitiendo este medicamento.',
-      help: 'Puede decir: Tomado, para marcar. Posponer, para recordar después. Omitir, para saltar. O Cancelar.',
-      notUnderstood: 'No entendí. Diga Tomado, Posponer, Omitir o Ayuda.',
-      reminder: (name) => `Es hora de tomar ${name}. Diga tomado, posponer u omitir.`,
-      repeatReminder: (name) => `Recordatorio: Por favor tome ${name}. Diga tomado, posponer u omitir.`,
-    },
-  },
-  'fr-FR': {
-    taken: ['pris', 'je l\'ai pris', 'fait', 'oui', 'déjà', 'déjà fait'],
-    snooze: ['reporter', 'plus tard', 'attends', 'rappelle-moi', 'pas maintenant'],
-    skip: ['ignorer', 'sauter', 'pas aujourd\'hui', 'passer'],
-    help: ['aide', 'que puis-je dire', 'commandes'],
-    cancel: ['annuler', 'oublie', 'stop', 'silence'],
-    responses: {
-      taken: 'Marqué comme pris. Bien joué!',
-      snooze: (min) => `Reporté de ${min} minutes.`,
-      skip: 'Médicament ignoré.',
-      help: 'Vous pouvez dire: Pris, pour marquer. Reporter, pour rappeler plus tard. Ignorer, pour sauter. Ou Annuler.',
-      notUnderstood: 'Je n\'ai pas compris. Dites Pris, Reporter, Ignorer ou Aide.',
-      reminder: (name) => `C'est l'heure de prendre ${name}. Dites pris, reporter ou ignorer.`,
-      repeatReminder: (name) => `Rappel: Veuillez prendre ${name}. Dites pris, reporter ou ignorer.`,
-    },
-  },
-  'de-DE': {
-    taken: ['genommen', 'habe ich genommen', 'fertig', 'ja', 'schon', 'schon gemacht', 'erledigt'],
-    snooze: ['verschieben', 'später', 'warte', 'erinnere mich', 'nicht jetzt'],
-    skip: ['überspringen', 'heute nicht', 'auslassen'],
-    help: ['hilfe', 'was kann ich sagen', 'befehle'],
-    cancel: ['abbrechen', 'vergiss es', 'stop', 'ruhe'],
-    responses: {
-      taken: 'Als genommen markiert. Gut gemacht!',
-      snooze: (min) => `Verschoben um ${min} Minuten.`,
-      skip: 'Medikament übersprungen.',
-      help: 'Sie können sagen: Genommen, zum markieren. Verschieben, für später. Überspringen, zum auslassen. Oder Abbrechen.',
-      notUnderstood: 'Ich habe nicht verstanden. Sagen Sie Genommen, Verschieben, Überspringen oder Hilfe.',
-      reminder: (name) => `Zeit für ${name}. Sagen Sie genommen, verschieben oder überspringen.`,
-      repeatReminder: (name) => `Erinnerung: Bitte nehmen Sie ${name}. Sagen Sie genommen, verschieben oder überspringen.`,
-    },
-  },
-  'pt-BR': {
-    taken: ['tomado', 'eu tomei', 'pronto', 'sim', 'já', 'já fiz', 'feito'],
-    snooze: ['adiar', 'depois', 'espere', 'me lembre', 'mais tarde', 'agora não'],
-    skip: ['pular', 'hoje não', 'passar'],
-    help: ['ajuda', 'o que posso dizer', 'comandos'],
-    cancel: ['cancelar', 'esquece', 'parar', 'silêncio'],
-    responses: {
-      taken: 'Marcado como tomado. Muito bem!',
-      snooze: (min) => `Adiado por ${min} minutos.`,
-      skip: 'Pulando este medicamento.',
-      help: 'Você pode dizer: Tomado, para marcar. Adiar, para lembrar depois. Pular, para ignorar. Ou Cancelar.',
-      notUnderstood: 'Não entendi. Diga Tomado, Adiar, Pular ou Ajuda.',
-      reminder: (name) => `Hora de tomar ${name}. Diga tomado, adiar ou pular.`,
-      repeatReminder: (name) => `Lembrete: Por favor tome ${name}. Diga tomado, adiar ou pular.`,
-    },
-  },
-  'zh-CN': {
-    taken: ['已服用', '吃了', '完成', '是', '好了', '已经吃了'],
-    snooze: ['延后', '稍后', '等等', '提醒我', '待会儿', '现在不行'],
-    skip: ['跳过', '今天不要', '不吃'],
-    help: ['帮助', '我能说什么', '命令'],
-    cancel: ['取消', '算了', '停止', '安静'],
-    responses: {
-      taken: '已标记为服用。做得好！',
-      snooze: (min) => `延后${min}分钟。`,
-      skip: '跳过此药物。',
-      help: '您可以说：已服用，来标记。延后，稍后提醒。跳过，来跳过。或取消。',
-      notUnderstood: '我没听懂。说 已服用、延后、跳过 或 帮助。',
-      reminder: (name) => `该服用${name}了。说 已服用、延后 或 跳过。`,
-      repeatReminder: (name) => `提醒：请服用${name}。说 已服用、延后 或 跳过。`,
+      help: 'Puede decir: Tomado, para marcar. Posponer, para recordar después. O Cancelar.',
+      notUnderstood: 'No entendí. Por favor intente de nuevo. Diga Tomado, Posponer o Ayuda.',
+      reminder: (name) => `Es hora de tomar ${name}. Diga tomado o posponer.`,
+      repeatReminder: (name) => `Recordatorio: Por favor tome ${name}. Diga tomado o posponer.`,
     },
   },
 };
 
 // Store scheduled reminders to trigger at exact times
 const scheduledReminders = new Map<string, ReturnType<typeof setTimeout>>();
+// Store repeat intervals
+const repeatIntervals = new Map<string, ReturnType<typeof setInterval>>();
 
 // Helper to check if we're in quiet hours
 const isInQuietHours = (settings: VoiceSettings): boolean => {
@@ -227,14 +158,31 @@ const getVoiceSettings = (): VoiceSettings => {
   }
 };
 
+// Helper to clear all reminders for a specific log
+const clearRemindersForLog = (logId: string) => {
+  // Clear scheduled reminder
+  scheduledReminders.forEach((timeout, key) => {
+    if (key.startsWith(logId)) {
+      clearTimeout(timeout);
+      scheduledReminders.delete(key);
+    }
+  });
+  
+  // Clear repeat interval
+  if (repeatIntervals.has(logId)) {
+    clearInterval(repeatIntervals.get(logId)!);
+    repeatIntervals.delete(logId);
+  }
+};
+
 export function useVoiceReminder(
   logs: MedicationLog[],
   onReminderTriggered?: (log: MedicationLog) => void,
   options?: VoiceReminderOptions
 ) {
   const activeReminderRef = useRef<string | null>(null);
-  const repeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
+  const isStoppedRef = useRef(false);
   const [isListening, setIsListening] = useState(false);
   const [activeLogId, setActiveLogId] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(() => getVoiceSettings().voiceRemindersEnabled);
@@ -254,7 +202,10 @@ export function useVoiceReminder(
   }, [language]);
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+      onEnd?.();
+      return;
+    }
     
     const settings = getVoiceSettings();
     
@@ -269,12 +220,11 @@ export function useVoiceReminder(
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.85; // Slower for elderly
+    utterance.rate = 0.85;
     utterance.pitch = 1;
     utterance.volume = settings.voiceVolume / 100;
     utterance.lang = settings.voiceLanguage;
 
-    // Try to use a clear, friendly voice
     const voices = window.speechSynthesis.getVoices();
     const preferredVoice = voices.find(v => 
       v.lang.startsWith(settings.voiceLanguage.split('-')[0]) ||
@@ -286,110 +236,160 @@ export function useVoiceReminder(
       utterance.voice = preferredVoice;
     }
 
-    utterance.onend = () => {
-      onEnd?.();
-    };
+    utterance.onend = () => onEnd?.();
     
     window.speechSynthesis.speak(utterance);
   }, []);
 
   const stopListening = useCallback(() => {
+    isStoppedRef.current = true;
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.abort();
+      } catch (e) {
+        // Ignore
+      }
       recognitionRef.current = null;
     }
     setIsListening(false);
-    setTranscript('');
-    setConfidence(0);
   }, []);
 
-  const clearActiveReminder = useCallback(() => {
+  // CRITICAL: Clear all reminders and stop everything for a specific log
+  const clearActiveReminder = useCallback((logId?: string) => {
+    const targetLogId = logId || activeReminderRef.current;
+    
+    console.log('clearActiveReminder called for:', targetLogId);
+    
+    // Stop speech synthesis
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    
+    // Clear the specific log's reminders
+    if (targetLogId) {
+      clearRemindersForLog(targetLogId);
+    }
+    
+    // Reset active state
     activeReminderRef.current = null;
     setActiveLogId(null);
     setTranscript('');
-    setLastCommand(null);
     setConfidence(0);
+    
+    // Stop listening
     stopListening();
-    if (repeatIntervalRef.current) {
-      clearInterval(repeatIntervalRef.current);
-      repeatIntervalRef.current = null;
-    }
   }, [stopListening]);
 
-  const processVoiceCommand = useCallback((transcriptText: string, logId: string, conf: number): boolean => {
+  // Parse voice command and return action type
+  const parseVoiceCommand = useCallback((transcriptText: string): { action: ActionType | null; snoozeMinutes?: number } => {
     const lower = transcriptText.toLowerCase().trim();
     const langCommands = getLanguageCommands();
-    console.log('Processing voice command:', lower, 'confidence:', conf);
-
-    setConfidence(conf);
+    
+    console.log('Parsing voice command:', lower);
 
     // Check for "taken" command
     if (langCommands.taken.some(cmd => lower.includes(cmd))) {
-      setLastCommand({ text: transcriptText, recognized: true, command: 'taken' });
-      speak(langCommands.responses.taken);
-      options?.onTaken?.(logId);
-      clearActiveReminder();
-      return true;
+      return { action: 'taken' };
     }
 
-    // Check for snooze commands
-    const snoozeMatch = lower.match(/(\d+)/);
+    // Check for snooze commands with optional minutes
     if (langCommands.snooze.some(cmd => lower.includes(cmd))) {
-      let minutes = 5; // default
+      let minutes = 10; // default
+      const snoozeMatch = lower.match(/(\d+)/);
       if (snoozeMatch && snoozeMatch[1]) {
         const parsed = parseInt(snoozeMatch[1], 10);
         if (parsed >= 1 && parsed <= 60) {
           minutes = parsed;
         }
       }
-      
-      setLastCommand({ text: transcriptText, recognized: true, command: 'snooze' });
-      speak(langCommands.responses.snooze(minutes));
-      options?.onSnooze?.(logId, minutes);
-      clearActiveReminder();
-      return true;
-    }
-
-    // Check for skip commands
-    if (langCommands.skip.some(cmd => lower.includes(cmd))) {
-      setLastCommand({ text: transcriptText, recognized: true, command: 'skip' });
-      speak(langCommands.responses.skip);
-      options?.onSkip?.(logId);
-      clearActiveReminder();
-      return true;
+      return { action: 'snooze', snoozeMinutes: minutes };
     }
 
     // Check for help commands
     if (langCommands.help.some(cmd => lower.includes(cmd))) {
-      setLastCommand({ text: transcriptText, recognized: true, command: 'help' });
-      speak(langCommands.responses.help);
-      options?.onHelp?.();
-      return true;
+      return { action: 'help' };
     }
 
     // Check for cancel commands
     if (langCommands.cancel.some(cmd => lower.includes(cmd))) {
-      setLastCommand({ text: transcriptText, recognized: true, command: 'cancel' });
-      window.speechSynthesis.cancel();
-      options?.onCancel?.();
-      clearActiveReminder();
+      return { action: 'cancel' };
+    }
+
+    return { action: null };
+  }, [getLanguageCommands]);
+
+  const processVoiceCommand = useCallback((transcriptText: string, logId: string, conf: number): boolean => {
+    const langCommands = getLanguageCommands();
+    console.log('Processing voice command:', transcriptText, 'confidence:', conf);
+
+    setConfidence(conf);
+
+    const { action, snoozeMinutes } = parseVoiceCommand(transcriptText);
+
+    if (action === 'taken') {
+      setLastCommand({ text: transcriptText, recognized: true, command: 'taken' });
+      speak(langCommands.responses.taken);
+      
+      // Clear reminders FIRST
+      clearActiveReminder(logId);
+      
+      // Then trigger action
+      options?.onAction?.('taken', logId);
       return true;
     }
 
+    if (action === 'snooze') {
+      const minutes = snoozeMinutes || 10;
+      setLastCommand({ text: transcriptText, recognized: true, command: 'snooze' });
+      speak(langCommands.responses.snooze(minutes));
+      
+      // Clear reminders FIRST
+      clearActiveReminder(logId);
+      
+      // Then trigger action
+      options?.onAction?.('snooze', logId, minutes);
+      return true;
+    }
+
+    if (action === 'help') {
+      setLastCommand({ text: transcriptText, recognized: true, command: 'help' });
+      speak(langCommands.responses.help);
+      options?.onAction?.('help', logId);
+      return true;
+    }
+
+    if (action === 'cancel') {
+      setLastCommand({ text: transcriptText, recognized: true, command: 'cancel' });
+      window.speechSynthesis.cancel();
+      clearActiveReminder(logId);
+      options?.onAction?.('cancel', logId);
+      return true;
+    }
+
+    // Not recognized - show error
     setLastCommand({ text: transcriptText, recognized: false });
+    setError(langCommands.responses.notUnderstood);
+    options?.onError?.(langCommands.responses.notUnderstood);
+    
+    // Speak the "not understood" message
+    speak(langCommands.responses.notUnderstood);
+    
     return false;
-  }, [speak, options, clearActiveReminder, getLanguageCommands]);
+  }, [speak, options, clearActiveReminder, getLanguageCommands, parseVoiceCommand]);
 
   const startListening = useCallback((logId: string) => {
-    // Check if browser supports speech recognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setError('Speech recognition not supported in this browser');
-      console.log('Speech recognition not supported');
+      const errMsg = 'Speech recognition not supported in this browser';
+      setError(errMsg);
+      options?.onError?.(errMsg);
+      console.log(errMsg);
       return;
     }
 
-    stopListening(); // Stop any existing recognition
+    // Stop any existing recognition
+    stopListening();
+    isStoppedRef.current = false;
     setError(null);
     setTranscript('');
     setConfidence(0);
@@ -403,7 +403,8 @@ export function useVoiceReminder(
     recognition.onstart = () => {
       setIsListening(true);
       setActiveLogId(logId);
-      console.log('Voice recognition started');
+      activeReminderRef.current = logId;
+      console.log('Voice recognition started for log:', logId);
     };
 
     recognition.onresult = (event) => {
@@ -412,7 +413,6 @@ export function useVoiceReminder(
       const transcriptText = result[0].transcript;
       const conf = result[0].confidence;
       
-      // Show interim results
       setTranscript(transcriptText);
       setConfidence(conf);
       
@@ -425,29 +425,42 @@ export function useVoiceReminder(
       console.error('Speech recognition error:', event.error);
       
       if (event.error === 'not-allowed') {
-        setError('Microphone access denied. Please allow microphone access.');
-      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-        // Try to restart on error
-        setTimeout(() => {
-          if (activeReminderRef.current === logId) {
+        const errMsg = 'Microphone access denied. Please allow microphone access.';
+        setError(errMsg);
+        options?.onError?.(errMsg);
+      } else if (event.error === 'no-speech') {
+        // This is normal, don't show error but restart
+        if (!isStoppedRef.current && activeReminderRef.current === logId) {
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.log('Could not restart recognition after no-speech');
+            }
+          }, 500);
+        }
+      } else if (event.error !== 'aborted') {
+        // Try to restart on other errors
+        if (!isStoppedRef.current && activeReminderRef.current === logId) {
+          setTimeout(() => {
             try {
               recognition.start();
             } catch (e) {
               console.log('Could not restart recognition');
             }
-          }
-        }, 1000);
+          }, 1000);
+        }
       }
     };
 
     recognition.onend = () => {
-      // Restart if still active
-      if (activeReminderRef.current === logId) {
+      // Only restart if still active for this log and not manually stopped
+      if (!isStoppedRef.current && activeReminderRef.current === logId) {
         setTimeout(() => {
           try {
             recognition.start();
           } catch (e) {
-            console.log('Could not restart recognition');
+            console.log('Could not restart recognition on end');
           }
         }, 500);
       } else {
@@ -463,13 +476,21 @@ export function useVoiceReminder(
       recognition.start();
     } catch (e) {
       console.error('Could not start speech recognition:', e);
-      setError('Could not start voice recognition');
+      const errMsg = 'Could not start voice recognition';
+      setError(errMsg);
+      options?.onError?.(errMsg);
     }
-  }, [stopListening, processVoiceCommand]);
+  }, [stopListening, processVoiceCommand, options]);
 
   const triggerReminder = useCallback((log: MedicationLog) => {
     // Don't re-trigger if already active for this log
     if (activeReminderRef.current === log.id) return;
+    
+    // Don't trigger for non-pending/snoozed logs
+    if (log.status !== 'pending' && log.status !== 'snoozed') {
+      console.log('Not triggering reminder - status is:', log.status);
+      return;
+    }
     
     const settings = getVoiceSettings();
     const langCommands = LANGUAGE_COMMANDS[settings.voiceLanguage] || LANGUAGE_COMMANDS['en-US'];
@@ -493,19 +514,19 @@ export function useVoiceReminder(
     
     onReminderTriggered?.(log);
 
-    // Set up repeat reminders based on settings
-    if (repeatIntervalRef.current) {
-      clearInterval(repeatIntervalRef.current);
+    // Clear any existing repeat interval for this log
+    if (repeatIntervals.has(log.id)) {
+      clearInterval(repeatIntervals.get(log.id)!);
     }
     
     const repeatMs = settings.repeatInterval * 60 * 1000;
     
-    repeatIntervalRef.current = setInterval(() => {
+    const intervalId = setInterval(() => {
+      // Check if still active
       if (activeReminderRef.current === log.id) {
         const currentSettings = getVoiceSettings();
         const currentLangCommands = LANGUAGE_COMMANDS[currentSettings.voiceLanguage] || LANGUAGE_COMMANDS['en-US'];
         
-        // Re-check quiet hours before repeating
         if (isInQuietHours(currentSettings)) {
           console.log('Entered quiet hours, stopping repeats');
           return;
@@ -515,20 +536,21 @@ export function useVoiceReminder(
           startListening(log.id);
         });
       } else {
-        if (repeatIntervalRef.current) {
-          clearInterval(repeatIntervalRef.current);
-          repeatIntervalRef.current = null;
-        }
+        // Clear this interval if no longer active
+        clearInterval(intervalId);
+        repeatIntervals.delete(log.id);
       }
     }, repeatMs);
+    
+    repeatIntervals.set(log.id, intervalId);
   }, [speak, startListening, onReminderTriggered]);
 
-  // Schedule reminders at exact times
+  // Schedule reminders at exact LOCAL times
   const scheduleReminder = useCallback((log: MedicationLog, targetTime: Date) => {
     const now = new Date();
     const delay = targetTime.getTime() - now.getTime();
     
-    if (delay <= 0) return; // Time already passed
+    if (delay <= 0) return;
 
     const key = `${log.id}-${targetTime.toISOString()}`;
     
@@ -560,7 +582,6 @@ export function useVoiceReminder(
     
     window.addEventListener('storage', handleStorageChange);
     
-    // Also check on mount
     const settings = getVoiceSettings();
     setVoiceEnabled(settings.voiceRemindersEnabled);
     setLanguage(settings.voiceLanguage);
@@ -568,7 +589,7 @@ export function useVoiceReminder(
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Check and schedule reminders
+  // Check and schedule reminders based on LOCAL time
   useEffect(() => {
     const settings = getVoiceSettings();
     if (!settings.voiceRemindersEnabled) return;
@@ -576,21 +597,25 @@ export function useVoiceReminder(
     const now = new Date();
 
     logs.forEach(log => {
-      if (log.status !== 'pending' && log.status !== 'snoozed') return;
-      if (activeReminderRef.current === log.id) return; // Already active
+      // Skip if not pending/snoozed
+      if (log.status !== 'pending' && log.status !== 'snoozed') {
+        // If status changed from pending/snoozed, clear any reminders
+        clearRemindersForLog(log.id);
+        return;
+      }
+      
+      if (activeReminderRef.current === log.id) return;
 
       let targetTime: Date | null = null;
 
       if (log.status === 'pending') {
-        // Parse scheduled time
         const [hours, minutes] = log.scheduled_time.split(':').map(Number);
         targetTime = new Date();
         targetTime.setHours(hours, minutes, 0, 0);
         
-        // If time has passed, trigger immediately
         if (now >= targetTime) {
           const timeDiff = now.getTime() - targetTime.getTime();
-          // Only trigger if within the last 5 minutes
+          // Trigger if within the last 5 minutes
           if (timeDiff < 5 * 60 * 1000) {
             triggerReminder(log);
           }
@@ -599,7 +624,6 @@ export function useVoiceReminder(
       } else if (log.status === 'snoozed' && log.snoozed_until) {
         targetTime = new Date(log.snoozed_until);
         
-        // If snooze time has passed, trigger immediately
         if (now >= targetTime) {
           triggerReminder(log);
           return;
@@ -611,7 +635,6 @@ export function useVoiceReminder(
       }
     });
 
-    // Cleanup function
     return () => {
       scheduledReminders.forEach((timeout) => {
         clearTimeout(timeout);
@@ -624,16 +647,17 @@ export function useVoiceReminder(
   useEffect(() => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.getVoices();
-      // Some browsers need this event
       window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.getVoices();
       };
     }
 
     return () => {
-      if (repeatIntervalRef.current) {
-        clearInterval(repeatIntervalRef.current);
-      }
+      // Cleanup all intervals and timeouts
+      repeatIntervals.forEach((interval) => clearInterval(interval));
+      repeatIntervals.clear();
+      scheduledReminders.forEach((timeout) => clearTimeout(timeout));
+      scheduledReminders.clear();
       stopListening();
     };
   }, [stopListening]);
@@ -645,7 +669,6 @@ export function useVoiceReminder(
   const toggleVoice = useCallback(() => {
     setVoiceEnabled(prev => {
       const newValue = !prev;
-      // Also update localStorage
       try {
         const saved = localStorage.getItem('ezmed-settings');
         const settings = saved ? JSON.parse(saved) : {};
@@ -658,13 +681,11 @@ export function useVoiceReminder(
     });
   }, []);
 
-  // Test voice function
   const testVoice = useCallback(() => {
     const langCommands = getLanguageCommands();
     speak(langCommands.responses.help);
   }, [speak, getLanguageCommands]);
 
-  // Get available languages
   const availableLanguages = Object.keys(LANGUAGE_COMMANDS);
 
   return { 
@@ -684,5 +705,6 @@ export function useVoiceReminder(
     testVoice,
     language,
     availableLanguages,
+    parseVoiceCommand,
   };
 }
