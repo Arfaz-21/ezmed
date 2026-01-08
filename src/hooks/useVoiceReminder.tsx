@@ -69,7 +69,7 @@ interface VoiceSettings {
 
 const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   voiceRemindersEnabled: true,
-  voiceVolume: 80,
+  voiceVolume: 100,
   repeatInterval: 1,
   quietHoursEnabled: false,
   quietHoursStart: '22:00',
@@ -220,9 +220,9 @@ export function useVoiceReminder(
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.85;
-    utterance.pitch = 1;
-    utterance.volume = settings.voiceVolume / 100;
+    utterance.rate = 0.9;
+    utterance.pitch = 1.05;
+    utterance.volume = 1.0; // Always max volume for reminders
     utterance.lang = settings.voiceLanguage;
 
     const voices = window.speechSynthesis.getVoices();
