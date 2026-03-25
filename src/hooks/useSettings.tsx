@@ -85,17 +85,17 @@ export function useSettings() {
           ({ error } = await supabase
             .from('user_settings')
             .update({
-              settings: newSettings as unknown as Record<string, unknown>,
+              settings: JSON.parse(JSON.stringify(newSettings)),
               updated_at: new Date().toISOString(),
             })
             .eq('user_id', user.id));
         } else {
           ({ error } = await supabase
             .from('user_settings')
-            .insert({
+            .insert([{
               user_id: user.id,
-              settings: newSettings as unknown as Record<string, unknown>,
-            }));
+              settings: JSON.parse(JSON.stringify(newSettings)),
+            }]));
         }
 
         if (error) console.error('Failed to save settings to DB:', error);
