@@ -73,13 +73,30 @@ export function useSettings() {
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const { error } = await supabase
+        // Check if row exists
+        const { data: existing } = await supabase
           .from('user_settings')
-          .upsert({
-            user_id: user.id,
-            settings: newSettings as unknown as Record<string, unknown>,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'user_id' });
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        let error;
+        if (existing) {
+          ({ error } = await supabase
+            .from('user_settings')
+            .update({
+              settings: newSettings as unknown as Record<string, unknown>,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', user.id));
+        } else {
+          ({ error } = await supabase
+            .from('user_settings')
+            .insert({
+              user_id: user.id,
+              settings: newSettings as unknown as Record<string, unknown>,
+            }));
+        }
 
         if (error) console.error('Failed to save settings to DB:', error);
       } catch (e) {
