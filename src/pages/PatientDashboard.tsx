@@ -7,7 +7,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, Volume2, VolumeX, BellRing, Settings } from 'lucide-react';
+import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, Volume2, VolumeX, BellRing, Settings, WifiOff } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
