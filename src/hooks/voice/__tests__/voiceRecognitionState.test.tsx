@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   recognitionReducer,
   INITIAL_RECOGNITION_STATE,
-} from '../voice/types';
+} from '../../voice/types';
 
 describe('recognitionReducer', () => {
   it('transitions to listening on START_LISTENING', () => {
