@@ -25,7 +25,7 @@ import VoiceCommandPopup from '@/components/patient/VoiceCommandPopup';
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { todayLogs, markAsTaken, snooze, loading } = useMedications();
+  const { todayLogs, markAsTaken, snooze, loading, isOnline } = useMedications();
   const { toast } = useToast();
   const [activeLog, setActiveLog] = useState<MedicationLog | null>(null);
   const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
