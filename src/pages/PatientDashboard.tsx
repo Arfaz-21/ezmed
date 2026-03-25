@@ -329,6 +329,13 @@ export default function PatientDashboard() {
       />
 
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 pb-24">
+        {/* Offline Banner */}
+        {!isOnline && (
+          <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-warning/10 border border-warning/30 text-warning text-sm font-medium">
+            <WifiOff className="h-4 w-4 shrink-0" />
+            You're offline — changes will sync when reconnected
+          </div>
+        )}
         {/* Header */}
         <header className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
