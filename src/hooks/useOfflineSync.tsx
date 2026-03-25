@@ -6,7 +6,7 @@ interface PendingAction {
   logId: string;
   timestamp: string;
   snoozeMinutes?: number;
-  snoozeUntil?: string; // Exact time when snooze ends
+  snoozeUntil?: string;
 }
 
 interface PendingSnooze {
@@ -17,6 +17,7 @@ interface PendingSnooze {
 
 const STORAGE_KEY = 'ezmed_pending_actions';
 const SNOOZE_STORAGE_KEY = 'ezmed_pending_snoozes';
+const MAX_RETRIES = 3;
 
 export function useOfflineSync(
   onSync: (action: PendingAction) => Promise<void>,
@@ -24,14 +25,14 @@ export function useOfflineSync(
 ) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
   const snoozeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const retryCountRef = useRef<Map<string, number>>(new Map());
 
   // Load pending actions from localStorage
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setPendingActions(JSON.parse(stored));
-    }
+    if (stored) setPendingActions(JSON.parse(stored));
   }, []);
 
   // Save pending actions to localStorage
@@ -43,10 +44,8 @@ export function useOfflineSync(
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -60,7 +59,7 @@ export function useOfflineSync(
     }
   }, [isOnline]);
 
-  // Check for expired snoozes on mount and set timers
+  // Snooze timer management
   useEffect(() => {
     const stored = localStorage.getItem(SNOOZE_STORAGE_KEY);
     if (!stored) return;
@@ -73,11 +72,9 @@ export function useOfflineSync(
       const delay = snoozeEnd.getTime() - now.getTime();
 
       if (delay <= 0) {
-        // Snooze already expired
         onSnoozeExpire?.(snooze.logId);
         removeSnooze(snooze.logId);
       } else {
-        // Set timer for snooze expiry
         const timer = setTimeout(() => {
           onSnoozeExpire?.(snooze.logId);
           removeSnooze(snooze.logId);
@@ -95,23 +92,42 @@ export function useOfflineSync(
   const removeSnooze = (logId: string) => {
     const stored = localStorage.getItem(SNOOZE_STORAGE_KEY);
     if (!stored) return;
-
     const snoozes: PendingSnooze[] = JSON.parse(stored);
-    const filtered = snoozes.filter(s => s.logId !== logId);
-    localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(filtered));
+    localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozes.filter(s => s.logId !== logId)));
   };
 
   const syncPendingActions = async () => {
     const actions = [...pendingActions];
-    
+    if (actions.length === 0) return;
+
+    setIsSyncing(true);
+
     for (const action of actions) {
+      const retries = retryCountRef.current.get(action.id) || 0;
+      if (retries >= MAX_RETRIES) {
+        // Remove after max retries
+        setPendingActions(prev => prev.filter(a => a.id !== action.id));
+        retryCountRef.current.delete(action.id);
+        continue;
+      }
+
       try {
         await onSync(action);
         setPendingActions(prev => prev.filter(a => a.id !== action.id));
+        retryCountRef.current.delete(action.id);
       } catch (error) {
         console.error('Failed to sync action:', error);
+        retryCountRef.current.set(action.id, retries + 1);
+        // Exponential backoff - schedule retry
+        const backoffMs = Math.min(1000 * Math.pow(2, retries), 30000);
+        setTimeout(() => {
+          if (navigator.onLine) syncPendingActions();
+        }, backoffMs);
+        break; // Stop processing remaining actions
       }
     }
+
+    setIsSyncing(false);
   };
 
   const addPendingAction = useCallback((action: Omit<PendingAction, 'id' | 'timestamp'>) => {
@@ -121,18 +137,15 @@ export function useOfflineSync(
       timestamp: new Date().toISOString()
     };
 
-    // If it's a snooze, calculate exact end time and store it
     if (action.type === 'snoozed' && action.snoozeMinutes) {
       const snoozeUntil = new Date(Date.now() + action.snoozeMinutes * 60 * 1000).toISOString();
       newAction.snoozeUntil = snoozeUntil;
 
-      // Store snooze for offline tracking
       const stored = localStorage.getItem(SNOOZE_STORAGE_KEY);
       const snoozes: PendingSnooze[] = stored ? JSON.parse(stored) : [];
       snoozes.push({ logId: action.logId, snoozeUntil });
       localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozes));
 
-      // Set timer for snooze expiry
       const delay = action.snoozeMinutes * 60 * 1000;
       const timer = setTimeout(() => {
         onSnoozeExpire?.(action.logId);
@@ -156,6 +169,7 @@ export function useOfflineSync(
 
   return {
     isOnline,
+    isSyncing,
     pendingActions,
     addPendingAction,
     clearSnoozeTimer

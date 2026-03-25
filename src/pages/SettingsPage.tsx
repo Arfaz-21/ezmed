@@ -4,6 +4,7 @@ import { useTheme } from 'next-themes';
 import { useAuth } from '@/hooks/useAuth';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useVoiceReminder } from '@/hooks/useVoiceReminder';
+import { useSettings, DEFAULT_SETTINGS } from '@/hooks/useSettings';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -15,28 +16,6 @@ import {
   ArrowLeft, Bell, BellOff, BellRing, Volume2, VolumeX, 
   Settings, Clock, Vibrate, Moon, Sun, Shield, Monitor, Mic, Play, Globe
 } from 'lucide-react';
-
-interface UserSettings {
-  voiceRemindersEnabled: boolean;
-  voiceVolume: number;
-  repeatInterval: number; // minutes between voice reminder repeats
-  quietHoursEnabled: boolean;
-  quietHoursStart: string;
-  quietHoursEnd: string;
-  vibrationEnabled: boolean;
-  voiceLanguage: string;
-}
-
-const DEFAULT_SETTINGS: UserSettings = {
-  voiceRemindersEnabled: true,
-  voiceVolume: 80,
-  repeatInterval: 1,
-  quietHoursEnabled: false,
-  quietHoursStart: '22:00',
-  quietHoursEnd: '07:00',
-  vibrationEnabled: true,
-  voiceLanguage: 'en-US',
-};
 
 const LANGUAGE_OPTIONS = [
   { value: 'en-US', label: 'English (US)' },
@@ -56,21 +35,10 @@ export default function SettingsPage() {
   const { testVoice, isSupported: voiceSupported, isListening } = useVoiceReminder([], undefined, {});
   const [mounted, setMounted] = useState(false);
   const [testingVoice, setTestingVoice] = useState(false);
-  
-  const [settings, setSettings] = useState<UserSettings>(() => {
-    const saved = localStorage.getItem('ezmed-settings');
-    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
-  });
 
-  // Avoid hydration mismatch for theme
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const { settings, updateSetting: rawUpdateSetting, isLoaded } = useSettings();
 
-  // Save settings to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('ezmed-settings', JSON.stringify(settings));
-  }, [settings]);
+  useEffect(() => { setMounted(true); }, []);
 
   const handleEnableNotifications = async () => {
     try {
@@ -86,8 +54,8 @@ export default function SettingsPage() {
     }
   };
 
-  const updateSetting = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+  const updateSetting = <K extends keyof typeof settings>(key: K, value: (typeof settings)[K]) => {
+    rawUpdateSetting(key, value);
     toast({ title: 'Setting updated', description: 'Your preferences have been saved' });
   };
 
@@ -171,6 +139,7 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
         {/* Push Notifications */}
         <Card className="border-2">
           <CardHeader className="pb-3">
@@ -424,7 +393,7 @@ export default function SettingsPage() {
               <div>
                 <p className="text-sm font-medium">Your privacy matters</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  All settings are stored locally on your device. Your medication data is securely stored and only shared with your linked caregiver.
+                  All settings are synced securely to your account. Your medication data is only shared with your linked caregiver.
                 </p>
               </div>
             </div>

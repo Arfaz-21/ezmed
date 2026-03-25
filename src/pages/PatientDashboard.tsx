@@ -7,7 +7,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, Volume2, VolumeX, BellRing, Settings } from 'lucide-react';
+import { Check, Clock, Bell, BellOff, LogOut, User, AlertTriangle, Mic, Volume2, VolumeX, BellRing, Settings, WifiOff } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -25,7 +25,7 @@ import VoiceCommandPopup from '@/components/patient/VoiceCommandPopup';
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { todayLogs, markAsTaken, snooze, loading } = useMedications();
+  const { todayLogs, markAsTaken, snooze, loading, isOnline } = useMedications();
   const { toast } = useToast();
   const [activeLog, setActiveLog] = useState<MedicationLog | null>(null);
   const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
@@ -329,6 +329,13 @@ export default function PatientDashboard() {
       />
 
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 pb-24">
+        {/* Offline Banner */}
+        {!isOnline && (
+          <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-warning/10 border border-warning/30 text-warning text-sm font-medium">
+            <WifiOff className="h-4 w-4 shrink-0" />
+            You're offline — changes will sync when reconnected
+          </div>
+        )}
         {/* Header */}
         <header className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
