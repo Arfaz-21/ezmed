@@ -52,13 +52,35 @@ export default function MedicineScanner({ onConfirm, onCancel }: MedicineScanner
     setScanResult(null);
   };
 
+  const resizeImage = (dataUrl: string, maxSize = 800): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          const ratio = Math.min(maxSize / width, maxSize / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = dataUrl;
+    });
+  };
+
   const scanImage = async () => {
     if (!imagePreview) return;
 
     setScanning(true);
     try {
+      const resized = await resizeImage(imagePreview);
       const { data, error } = await supabase.functions.invoke('scan-medicine', {
-        body: { imageBase64: imagePreview }
+        body: { imageBase64: resized }
       });
 
       if (error) throw error;
