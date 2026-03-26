@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { MedicationLog } from './useMedications';
 import { useVoiceRecognition } from './voice/useVoiceRecognition';
 import { useReminderScheduler } from './voice/useReminderScheduler';
@@ -21,6 +21,8 @@ export function useVoiceReminder(
   const [language, setLanguage] = useState(() => getVoiceSettings().voiceLanguage);
 
   const recognition = useVoiceRecognition(options);
+  // Store scheduler ref to avoid circular dependency between handleCommand and scheduler
+  const schedulerRef = useRef<ReturnType<typeof useReminderScheduler> | null>(null);
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
     if (!('speechSynthesis' in window)) { onEnd?.(); return; }
@@ -53,7 +55,8 @@ export function useVoiceReminder(
     // Stop everything
     recognition.stopListening();
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    scheduler.completeReminder(logId);
+    // Use ref to avoid hoisting issue
+    schedulerRef.current?.completeReminder(logId);
 
     // Speak confirmation
     if (action === 'taken') speak(langCommands.responses.taken);
@@ -71,6 +74,9 @@ export function useVoiceReminder(
     },
     enabled: voiceEnabled,
   });
+
+  // Keep ref in sync
+  schedulerRef.current = scheduler;
 
   // completeMedication - single cleanup function for buttons & voice
   const completeMedication = useCallback((logId: string) => {
