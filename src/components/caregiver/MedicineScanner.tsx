@@ -78,10 +78,16 @@ export default function MedicineScanner({ onConfirm, onCancel }: MedicineScanner
 
     setScanning(true);
     try {
-      const resized = await resizeImage(imagePreview);
+      const resized = await resizeImage(imagePreview, 600);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+
       const { data, error } = await supabase.functions.invoke('scan-medicine', {
-        body: { imageBase64: resized }
+        body: { imageBase64: resized },
       });
+
+      clearTimeout(timeout);
 
       if (error) throw error;
 
@@ -98,9 +104,12 @@ export default function MedicineScanner({ onConfirm, onCancel }: MedicineScanner
       });
     } catch (error: any) {
       console.error('Scan error:', error);
+      const msg = error.name === 'AbortError' 
+        ? 'Scan took too long. Try a clearer photo.'
+        : (error.message || 'Could not analyze the image');
       toast({
         title: 'Scan failed',
-        description: error.message || 'Could not analyze the image',
+        description: msg,
         variant: 'destructive'
       });
     } finally {
