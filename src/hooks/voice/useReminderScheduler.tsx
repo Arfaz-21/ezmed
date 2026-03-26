@@ -118,7 +118,8 @@ export function useReminderScheduler(logs: MedicationLog[], options: SchedulerOp
         targetTime = new Date();
         targetTime.setHours(hours, minutes, 0, 0);
         if (now >= targetTime) {
-          if (now.getTime() - targetTime.getTime() < 5 * 60 * 1000) {
+          // Trigger if within 30 min of scheduled time
+          if (now.getTime() - targetTime.getTime() < 30 * 60 * 1000) {
             triggerReminder(log);
           }
           return;
