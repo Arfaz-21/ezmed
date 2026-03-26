@@ -1,4 +1,4 @@
-import { useReducer, useRef, useCallback } from 'react';
+import { useReducer, useRef, useCallback, useState } from 'react';
 import {
   ISpeechRecognition,
   ActionType,
@@ -15,6 +15,8 @@ export function useVoiceRecognition(options?: VoiceReminderOptions) {
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
   const isStoppedRef = useRef(false);
   const activeLogIdRef = useRef<string | null>(null);
+  // Use state for activeLogId so UI re-renders when it changes
+  const [activeLogId, setActiveLogId] = useState<string | null>(null);
 
   const isSupported = typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) &&
@@ -57,6 +59,7 @@ export function useVoiceRecognition(options?: VoiceReminderOptions) {
       recognitionRef.current = null;
     }
     activeLogIdRef.current = null;
+    setActiveLogId(null);
     dispatch({ type: 'STOP_LISTENING' });
   }, []);
 
@@ -92,6 +95,7 @@ export function useVoiceRecognition(options?: VoiceReminderOptions) {
 
     recognition.onstart = () => {
       activeLogIdRef.current = logId;
+      setActiveLogId(logId);
       dispatch({ type: 'START_LISTENING' });
     };
 
@@ -124,6 +128,8 @@ export function useVoiceRecognition(options?: VoiceReminderOptions) {
       if (event.error === 'not-allowed') {
         dispatch({ type: 'SET_ERROR', error: 'Microphone access denied. Please allow microphone access.' });
         dispatch({ type: 'STOP_LISTENING' });
+        activeLogIdRef.current = null;
+        setActiveLogId(null);
         options?.onError?.('Microphone access denied.');
       } else if (event.error === 'no-speech') {
         if (!isStoppedRef.current && activeLogIdRef.current === logId) {
@@ -135,6 +141,8 @@ export function useVoiceRecognition(options?: VoiceReminderOptions) {
         }
       } else if (event.error === 'aborted') {
         dispatch({ type: 'STOP_LISTENING' });
+        activeLogIdRef.current = null;
+        setActiveLogId(null);
       } else {
         if (!isStoppedRef.current && activeLogIdRef.current === logId) {
           setTimeout(() => {
@@ -155,6 +163,8 @@ export function useVoiceRecognition(options?: VoiceReminderOptions) {
         }, 500);
       } else {
         dispatch({ type: 'STOP_LISTENING' });
+        activeLogIdRef.current = null;
+        setActiveLogId(null);
       }
     };
 
@@ -173,6 +183,6 @@ export function useVoiceRecognition(options?: VoiceReminderOptions) {
     stopListening,
     parseVoiceCommand,
     isSupported,
-    activeLogId: activeLogIdRef.current,
+    activeLogId,
   };
 }
