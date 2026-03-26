@@ -41,35 +41,22 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-flash-lite',
         messages: [
           {
             role: 'system',
-            content: `You are a medical OCR assistant. Analyze medicine images and extract:
-1. Medicine name (brand name or generic name)
-2. Dosage information
-3. Any other relevant details
-
-Return a JSON object with these fields:
-- medicine_name: The most likely medicine name (string)
-- dosage: Dosage information if visible (string or null)
-- confidence: How confident you are (high/medium/low)
-- raw_text: All readable text from the image
-
-Be accurate and only include information you can clearly read.`
+            content: 'Extract medicine name and dosage from the image. Return JSON: {"medicine_name":"...","dosage":"...or null","confidence":"high|medium|low","raw_text":"all visible text"}'
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'Please analyze this medicine image and extract the medicine name, dosage, and any other readable text.'
+                text: 'Read this medicine label.'
               },
               {
                 type: 'image_url',
-                image_url: {
-                  url: imageBase64
-                }
+                image_url: { url: imageBase64 }
               }
             ]
           }
