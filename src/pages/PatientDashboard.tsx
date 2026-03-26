@@ -195,9 +195,13 @@ export default function PatientDashboard() {
       if (pendingDue) {
         setActiveLog(pendingDue);
         setShowVoicePopup(true);
+        // Auto-start listening when popup opens
+        if (voiceSupported) {
+          setTimeout(() => startListening(pendingDue.id, pendingDue), 500);
+        }
       }
     }
-  }, [todayLogs, loading, voiceEnabled, showVoicePopup, activeLog]);
+  }, [todayLogs, loading, voiceEnabled, showVoicePopup, activeLog, voiceSupported, startListening]);
 
   // Schedule notifications for pending logs
   useEffect(() => {
