@@ -294,7 +294,7 @@ export default function PatientDashboard() {
         isOpen={showVoicePopup && !!activeLog}
         isListening={isListening}
         transcript={transcript}
-        medicationName={activeLog?.medication?.name || activeLog?.medications?.name || 'Medication'}
+        medicationName={activeLog?.medications?.name || 'Medication'}
         onTaken={() => {
           if (activeLog) {
             // Use completeMedication via clearActiveReminder
